@@ -1,0 +1,67 @@
+# Local integration-test stack. Ports intentionally avoid the Supabase defaults so
+# this project can run alongside another local stack.
+project_id = "recommendation-mvp"
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[api.tls]
+enabled = false
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.pooler]
+enabled = false
+port = 55329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[db.migrations]
+enabled = true
+schema_paths = ["./schema.sql"]
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+port = 55323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = false
+port = 55324
+
+[storage]
+enabled = false
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_signup = false
+enable_anonymous_sign_ins = false
+minimum_password_length = 6
+
+[edge_runtime]
+enabled = false
+inspector_port = 8084
+
+[analytics]
+enabled = false
+port = 55327
+backend = "postgres"

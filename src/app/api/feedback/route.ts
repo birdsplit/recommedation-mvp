@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/lib/http";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
 
@@ -8,16 +9,16 @@ import { isUuid } from "@/lib/uuid";
  */
 
 const MAX_WORST_QUESTION_LEN = 500;
+const MAX_BODY_BYTES = 8192;
 
 function isScale1to5(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 5;
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return new Response(null, { status: 400 });
-  }
+  const parsed = await readJsonObject(req, MAX_BODY_BYTES);
+  if (!parsed.ok) return new Response(null, { status: parsed.status });
+  const body = parsed.value;
 
   const {
     session_id,
@@ -94,7 +95,9 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   const db = supabaseAdmin();
-  let { error } = await db.from("feedback").insert(row);
+  let { error } = await db
+    .from("feedback")
+    .upsert(row, { onConflict: "session_id" });
 
   // 존재하지 않는 상품 id로 FK 오류가 나면 chosen_product_id 없이 1회 재시도
   // (피드백 본문을 잃는 것보다 상품 연결을 포기하는 편이 낫다)
@@ -105,7 +108,10 @@ export async function POST(req: Request): Promise<Response> {
   ) {
     ({ error } = await db
       .from("feedback")
-      .insert({ ...row, chosen_product_id: null }));
+      .upsert(
+        { ...row, chosen_product_id: null },
+        { onConflict: "session_id" }
+      ));
   }
 
   if (error) {

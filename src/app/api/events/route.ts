@@ -1,14 +1,15 @@
 import { EVENT_TYPES, type EventType } from "@/lib/constants";
+import { readJsonObject } from "@/lib/http";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
 
 const MAX_PAYLOAD_BYTES = 2048;
+const MAX_BODY_BYTES = 4096;
 
 export async function POST(req: Request): Promise<Response> {
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return new Response(null, { status: 400 });
-  }
+  const parsed = await readJsonObject(req, MAX_BODY_BYTES);
+  if (!parsed.ok) return new Response(null, { status: parsed.status });
+  const body = parsed.value;
 
   const { session_id, event_type, payload } = body as {
     session_id?: unknown;
@@ -29,7 +30,10 @@ export async function POST(req: Request): Promise<Response> {
     payload && typeof payload === "object" && !Array.isArray(payload)
       ? payload
       : {};
-  if (JSON.stringify(safePayload).length > MAX_PAYLOAD_BYTES) {
+  if (
+    new TextEncoder().encode(JSON.stringify(safePayload)).byteLength >
+    MAX_PAYLOAD_BYTES
+  ) {
     return new Response(null, { status: 400 });
   }
 
