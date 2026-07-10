@@ -8,6 +8,8 @@ import {
   loadLastQuery,
 } from "@/components/RememberAnswers";
 import { getSessionId, track } from "@/lib/track";
+import { hasAnswers } from "@/lib/reco/answers";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * 화면11 — 결과 피드백.
@@ -31,8 +33,17 @@ type WorstCode = (typeof WORST_CHOICES)[number]["code"];
  * (서버 렌더 시 "" → 클라이언트에서 실제 값으로 재렌더)
  */
 const emptySubscribe = () => () => {};
-function useLastQuery(): string {
-  return useSyncExternalStore(emptySubscribe, loadLastQuery, () => "");
+function loadFeedbackQuery(): string {
+  if (typeof window !== "undefined") {
+    const current = new URLSearchParams(window.location.search);
+    current.delete("chosen");
+    if (hasAnswers(Object.fromEntries(current))) return current.toString();
+  }
+  return loadLastQuery();
+}
+
+function useFeedbackQuery(): string {
+  return useSyncExternalStore(emptySubscribe, loadFeedbackQuery, () => "");
 }
 
 /** 1~5 원형 버튼 척도 문항 */
@@ -155,19 +166,32 @@ export default function FeedbackPage() {
 
   // 화면 상태
   const [candidates, setCandidates] = useState<ProductSummary[]>([]);
-  const lastQuery = useLastQuery();
+  const lastQuery = useFeedbackQuery();
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const ids = loadLastCandidateIds();
+    const chosenFromUrl = new URLSearchParams(window.location.search).get(
+      "chosen"
+    );
+    const preferredId = isUuid(chosenFromUrl) ? chosenFromUrl : null;
+    const ids = [
+      ...new Set([
+        ...(preferredId ? [preferredId] : []),
+        ...loadLastCandidateIds(),
+      ]),
+    ];
     if (ids.length === 0) return;
     fetch(`/api/products?ids=${ids.join(",")}`)
       .then((res) => (res.ok ? res.json() : { products: [] }))
       .then((data: { products?: unknown }) => {
         if (Array.isArray(data.products)) {
-          setCandidates(data.products as ProductSummary[]);
+          const products = data.products as ProductSummary[];
+          setCandidates(products);
+          if (preferredId && products.some((p) => p.id === preferredId)) {
+            setChosenId(preferredId);
+          }
         }
       })
       .catch(() => {

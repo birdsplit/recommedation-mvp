@@ -13,13 +13,13 @@ export function EventOnMount({
   type: EventType;
   payload?: Record<string, unknown>;
 }) {
-  const fired = useRef(false);
+  const eventKey = `${type}:${JSON.stringify(payload ?? {})}`;
+  const firedKey = useRef<string | null>(null);
   useEffect(() => {
-    if (fired.current) return;
-    fired.current = true;
+    if (firedKey.current === eventKey) return;
+    firedKey.current = eventKey;
     track(type, payload);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [eventKey, payload, type]);
   return null;
 }
 

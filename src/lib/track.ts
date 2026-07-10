@@ -1,4 +1,5 @@
 import type { EventType } from "@/lib/constants";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * 익명 세션 이벤트 트래킹 (클라이언트 전용).
@@ -13,10 +14,19 @@ const VISIT_KEY = "modoo_last_visit";
 
 export function getSessionId(): string {
   if (typeof window === "undefined") return "";
-  let sid = localStorage.getItem(SID_KEY);
-  if (!sid) {
+  let sid: string | null = null;
+  try {
+    sid = localStorage.getItem(SID_KEY);
+  } catch {
+    // 저장소를 쓸 수 없어도 현재 요청의 익명 세션은 만든다.
+  }
+  if (!isUuid(sid)) {
     sid = crypto.randomUUID();
-    localStorage.setItem(SID_KEY, sid);
+    try {
+      localStorage.setItem(SID_KEY, sid);
+    } catch {
+      // private mode 등에서 저장 실패 시 쿠키만 사용한다.
+    }
   }
   document.cookie = `sid=${sid}; path=/; max-age=31536000; samesite=lax`;
   return sid;

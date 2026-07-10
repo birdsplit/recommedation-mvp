@@ -99,11 +99,34 @@ export function checkStorage(p: Product, answers: Answers): ConditionCheck {
 
 export function checkCarry(p: Product, answers: Answers): ConditionCheck {
   const label = CARRY_ANSWER_LABELS[answers.carry];
+  const assemblyAvailable =
+    p.assembly_service_available ||
+    (p.self_assembly !== null && p.self_assembly !== "not_possible");
   switch (answers.carry) {
     case "both_ok":
-    case "friend_help":
-      return { key: "carry", label, pass: true };
+    case "friend_help": {
+      // 사용자가 직접 조립할 수 있어도 상품 자체가 기사 설치 전용이면
+      // 실제 조립 서비스가 제공되는 경우에만 통과한다.
+      const pass = assemblyAvailable;
+      return {
+        key: "carry",
+        label,
+        pass,
+        note:
+          pass && p.self_assembly === "not_possible"
+            ? "직접 조립 불가 — 조립 서비스 제공"
+            : undefined,
+      };
+    }
     case "assembly_only": {
+      if (!assemblyAvailable) {
+        return {
+          key: "carry",
+          label,
+          pass: false,
+          note: "직접 조립 가능 여부와 조립 서비스를 모두 확인할 수 없어요",
+        };
+      }
       // 운반이 어려움 → 집 안까지 운반 서비스가 있거나, 혼자 옮길 만큼 가벼워야 함.
       // 서비스 없이 통과할 때는 그 가정을 반드시 고지한다 (note + reasons.ts 주의)
       if (p.carry_service_available) {

@@ -43,6 +43,24 @@ function metaChips(rec: Recommendation): string[] {
   } else if (p.dust_blocking === "high") {
     chips.push("하부 막힘(먼지 차단)");
   }
+  chips.push(
+    p.carry_service_available ? "집 안 운반 서비스" : "직접 운반 필요"
+  );
+  if (p.assembly_service_available) {
+    chips.push("조립 서비스 가능");
+  } else if (p.self_assembly === null) {
+    chips.push("조립 조건 판매처 확인");
+  } else if (p.self_assembly === "not_possible") {
+    chips.push("직접 조립 불가");
+  } else {
+    const difficulty =
+      p.self_assembly === "easy"
+        ? "쉬움"
+        : p.self_assembly === "medium"
+          ? "보통"
+          : "어려움";
+    chips.push(`직접 조립 ${difficulty} · 권장 ${p.assembly_people}인`);
+  }
   return chips;
 }
 

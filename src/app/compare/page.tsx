@@ -71,7 +71,9 @@ function CompareContent() {
   );
   const query = useMemo(() => {
     const spObj = Object.fromEntries(new URLSearchParams(spString));
-    return hasAnswers(spObj) ? spString : lastQuery;
+    if (hasAnswers(spObj)) return spString;
+    const lastQueryObject = Object.fromEntries(new URLSearchParams(lastQuery));
+    return hasAnswers(lastQueryObject) ? lastQuery : "";
   }, [spString, lastQuery]);
   const answers = useMemo(
     () => parseAnswers(Object.fromEntries(new URLSearchParams(query))),
@@ -107,13 +109,13 @@ function CompareContent() {
   }, [idsKey, remove, retryKey]);
 
   const recs = useMemo(() => {
-    if (fetchState?.status !== "ok") return [];
+    if (!query || fetchState?.status !== "ok") return [];
     const byId = new Map(fetchState.products.map((p) => [p.id, p] as const));
     return ids
       .map((id) => byId.get(id))
       .filter((p): p is Product => p !== undefined)
       .map((p) => evaluateProduct(p, answers));
-  }, [fetchState, ids, answers]);
+  }, [fetchState, ids, answers, query]);
 
   const backHref = query ? `/results?${query}` : "/";
   const resultsHref = query ? `/results?${query}` : "/q/1";
@@ -121,6 +123,8 @@ function CompareContent() {
   let content: ReactNode;
   if (ids.length === 0) {
     content = <EmptyCard resultsHref={resultsHref} />;
+  } else if (!query) {
+    content = <MissingConditionsCard />;
   } else if (fetchState === null || fetchState.key !== idsKey) {
     content = (
       <p className="px-6 pt-10 text-center text-[13.5px] font-medium text-faint">
@@ -167,6 +171,27 @@ function CompareContent() {
 
       {content}
     </main>
+  );
+}
+
+function MissingConditionsCard() {
+  return (
+    <div className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
+      <p className="text-[38px]">🧭</p>
+      <h2 className="mt-2 text-[18px] font-extrabold">
+        비교할 생활조건을 다시 알려주세요
+      </h2>
+      <p className="mt-2 text-[13.5px] leading-relaxed text-sub">
+        담아둔 상품은 그대로 있어요. 질문 3개에 다시 답하면 현재 조건으로
+        추천 수준과 최종 판단을 정확하게 비교해드릴게요.
+      </p>
+      <Link
+        href="/q/1"
+        className="mt-5 inline-block rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
+      >
+        생활조건 다시 입력하기
+      </Link>
+    </div>
   );
 }
 
@@ -232,6 +257,8 @@ function CompareTable({
             />
             {recs.map((rec) => {
               const p = rec.product;
+              const feedbackParams = new URLSearchParams(query);
+              feedbackParams.set("chosen", p.id);
               return (
                 <th
                   key={p.id}
@@ -274,6 +301,12 @@ function CompareTable({
                     })}
                     className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-full bg-[#F4EDE3] py-1.5 text-[11.5px] font-bold text-[#4A4038]"
                   />
+                  <Link
+                    href={`/feedback?${feedbackParams.toString()}`}
+                    className="mt-1.5 flex items-center justify-center rounded-full bg-coral-600 py-1.5 text-[11.5px] font-extrabold text-white"
+                  >
+                    이 상품 선택
+                  </Link>
                 </th>
               );
             })}

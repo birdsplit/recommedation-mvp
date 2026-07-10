@@ -2,6 +2,7 @@ import "server-only";
 import type { Product } from "@/lib/reco/types";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 import { SEED_PRODUCTS } from "@/lib/seed-data";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * 상품 데이터 접근 (서버 전용).
@@ -22,6 +23,8 @@ export async function getPublicProducts(): Promise<Product[]> {
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
+  // Postgres uuid 컬럼에 임의 문자열을 넘기면 404 대신 DB 오류가 발생한다.
+  if (!isUuid(id)) return null;
   if (!isSupabaseConfigured()) {
     return SEED_PRODUCTS.find((p) => p.id === id) ?? null;
   }
@@ -35,17 +38,18 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 export async function getPublicProductsByIds(ids: string[]): Promise<Product[]> {
-  if (ids.length === 0) return [];
+  const validIds = [...new Set(ids.filter(isUuid))];
+  if (validIds.length === 0) return [];
   if (!isSupabaseConfigured()) {
     return SEED_PRODUCTS.filter(
-      (p) => p.status === "public" && ids.includes(p.id)
+      (p) => p.status === "public" && validIds.includes(p.id)
     );
   }
   const { data, error } = await supabaseAdmin()
     .from("products")
     .select("*")
     .eq("status", "public")
-    .in("id", ids);
+    .in("id", validIds);
   if (error) throw new Error(`상품 조회 실패: ${error.message}`);
   return (data ?? []) as Product[];
 }

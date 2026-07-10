@@ -222,6 +222,36 @@ describe("filter — Q2 운반·조립 요건", () => {
     }
   });
 
+  it("기사 설치 전용인데 조립 서비스가 없으면 직접 가능/친구 도움도 실패", () => {
+    const impossibleWithoutService = makeProduct({
+      self_assembly: "not_possible",
+      assembly_service_available: false,
+    });
+    for (const carry of ["both_ok", "friend_help"] as CarryAnswer[]) {
+      expect(
+        checkCarry(impossibleWithoutService, answers({ carry })).pass
+      ).toBe(false);
+    }
+    expect(checkCarry(fullService, answers({ carry: "both_ok" })).pass).toBe(
+      true
+    );
+  });
+
+  it("조립 가능 여부가 미확인이고 서비스도 없으면 직접 조립 답변은 실패", () => {
+    const unknownAssembly = makeProduct({
+      self_assembly: null,
+      assembly_service_available: false,
+      carry_service_available: true,
+    });
+    for (const carry of [
+      "both_ok",
+      "friend_help",
+      "assembly_only",
+    ] as CarryAnswer[]) {
+      expect(checkCarry(unknownAssembly, answers({ carry })).pass).toBe(false);
+    }
+  });
+
   it("운반 어려움 → 운반 서비스 또는 가벼운 제품만", () => {
     const a = answers({ carry: "assembly_only" });
     expect(checkCarry(heavyNoServices, a).pass).toBe(false);

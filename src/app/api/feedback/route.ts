@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * 화면11 — 결과 피드백 저장 (supabase feedback 테이블).
@@ -6,8 +7,6 @@ import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
  * (/api/events/route.ts와 같은 폴백 패턴).
  */
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_WORST_QUESTION_LEN = 500;
 
 function isScale1to5(v: unknown): v is number {
@@ -33,7 +32,7 @@ export async function POST(req: Request): Promise<Response> {
   } = body as Record<string, unknown>;
 
   // ---------- 필수 항목 ----------
-  if (typeof session_id !== "string" || !UUID_RE.test(session_id)) {
+  if (!isUuid(session_id)) {
     return new Response(null, { status: 400 });
   }
   if (
@@ -62,7 +61,7 @@ export async function POST(req: Request): Promise<Response> {
   if (
     chosen_product_id !== undefined &&
     chosen_product_id !== null &&
-    (typeof chosen_product_id !== "string" || !UUID_RE.test(chosen_product_id))
+    !isUuid(chosen_product_id)
   ) {
     return new Response(null, { status: 400 });
   }

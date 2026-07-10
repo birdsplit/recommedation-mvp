@@ -1,8 +1,7 @@
 import { EVENT_TYPES, type EventType } from "@/lib/constants";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
+import { isUuid } from "@/lib/uuid";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_PAYLOAD_BYTES = 2048;
 
 export async function POST(req: Request): Promise<Response> {
@@ -17,7 +16,7 @@ export async function POST(req: Request): Promise<Response> {
     payload?: unknown;
   };
 
-  if (typeof session_id !== "string" || !UUID_RE.test(session_id)) {
+  if (!isUuid(session_id)) {
     return new Response(null, { status: 400 });
   }
   if (

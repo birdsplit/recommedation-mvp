@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalIcon } from "./icons";
 
 /**
@@ -26,6 +26,25 @@ export function SellerLinkButton({
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const continueRef = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    continueRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [open]);
 
   const goHref = `/go/${productId}?${new URLSearchParams({
     ...(rank ? { rank: String(rank) } : {}),
@@ -76,6 +95,7 @@ export function SellerLinkButton({
             </p>
             <div className="mt-5 space-y-2.5">
               <a
+                ref={continueRef}
                 href={goHref}
                 className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[17px] font-extrabold text-white shadow-cta"
               >

@@ -57,6 +57,14 @@ export default async function ProductDetailPage({
   const rec = evaluateProduct(product, answers);
   const p = rec.product;
   const failedChecks = rec.checks.filter((c) => !c.pass);
+  const mismatchReasons = [
+    ...failedChecks.map((c) =>
+      c.note ? `${c.label} — ${c.note}` : `${c.label} 조건을 충족하지 못해요.`
+    ),
+    ...(p.not_recommended_for
+      ? [`이런 분께는 맞지 않아요 — ${p.not_recommended_for}`]
+      : []),
+  ];
 
   return (
     <main className="min-h-dvh pb-12">
@@ -179,13 +187,39 @@ export default async function ProductDetailPage({
         </ul>
       </section>
 
-      {/* 4. 확인할 위험 */}
+      {/* 4. 나와 안 맞는 이유 */}
+      <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
+        <h3 className="text-[14px] font-extrabold text-coral-700">
+          나와 안 맞는 이유
+        </h3>
+        {mismatchReasons.length > 0 ? (
+          <ul className="mt-3 space-y-2.5">
+            {mismatchReasons.map((reason) => (
+              <li key={reason} className="flex gap-2">
+                <XCircleIcon
+                  size={17}
+                  className="mt-px shrink-0 text-coral-600"
+                />
+                <span className="text-[13.5px] leading-snug text-ink">
+                  {reason}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-[13.5px] leading-relaxed text-sub">
+            현재 선택한 필수조건과 뚜렷하게 충돌하는 점은 없어요.
+          </p>
+        )}
+      </section>
+
+      {/* 5. 감당 가능한 리스크 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
         <h3 className="text-[14px] font-extrabold text-honey-700">
-          확인할 위험
+          감당 가능한 리스크
         </h3>
         <div className="mt-3 space-y-2">
-          {rec.cautions.slice(0, 3).map((c) => (
+          {rec.cautions.map((c) => (
             <div
               key={c.core}
               className="flex gap-2 rounded-2xl bg-honey-50 px-3.5 py-3"
@@ -196,24 +230,16 @@ export default async function ProductDetailPage({
               </span>
             </div>
           ))}
-          {p.not_recommended_for && (
-            <div className="flex gap-2 rounded-2xl bg-honey-50 px-3.5 py-3">
-              <WarnIcon size={17} className="mt-px shrink-0 text-honey-700" />
-              <span className="text-[13px] font-medium leading-snug text-honey-700">
-                이런 분께는 비추천 — {p.not_recommended_for}
-              </span>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* 5. 실질 총비용 */}
+      {/* 6. 실질 총비용 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
         <h3 className="mb-3 text-[14px] font-extrabold">실질 총비용</h3>
         <CostBreakdownBlock rec={rec} />
       </section>
 
-      {/* 6. 리뷰에서 반복된 리스크 */}
+      {/* 7. 리뷰에서 반복된 리스크 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
         <h3 className="text-[14px] font-extrabold">리뷰에서 반복된 리스크</h3>
         {p.review_risks.length > 0 ? (
@@ -232,7 +258,7 @@ export default async function ProductDetailPage({
         )}
       </section>
 
-      {/* 7. 배송·설치·운반 */}
+      {/* 8. 배송·설치·운반 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
         <h3 className="text-[14px] font-extrabold">배송·설치·운반</h3>
         <dl className="mt-3 space-y-2 text-[13.5px]">
@@ -272,10 +298,10 @@ export default async function ProductDetailPage({
         </dl>
       </section>
 
-      {/* 8. 출처·확인일 */}
+      {/* 9. 출처·확인일 */}
       <TrustLine rec={rec} />
 
-      {/* 9. 최종 판단 */}
+      {/* 10. 최종 판단 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-card">
         <h3 className="text-[14px] font-extrabold text-coral-700">최종 판단</h3>
         <blockquote className="mt-3 rounded-2xl bg-cream px-5 py-4">

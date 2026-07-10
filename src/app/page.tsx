@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { connection } from "next/server";
 import { SERVICE_NAME } from "@/lib/constants";
 import { HeroBedIllustration } from "@/components/BedIllustration";
 import { ArrowRightIcon, CheckIcon, LogoMark, ShieldIcon } from "@/components/icons";
@@ -7,6 +7,8 @@ import { getPublicProducts } from "@/lib/products";
 
 /** 화면1 — 랜딩·시작 */
 export default async function LandingPage() {
+  // 관리자 상태 변경 뒤 상품 수가 빌드 시점 값으로 굳지 않도록 요청 때 조회한다.
+  await connection();
   const productCount = (await getPublicProducts()).length;
 
   return (
@@ -55,19 +57,22 @@ export default async function LandingPage() {
       <div className="px-8 pt-6">
         <TrackedLink
           event="start_click"
+          payload={{ entry: "questions" }}
           href="/q/1"
           className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-[18px] text-[19px] font-extrabold text-white shadow-cta"
         >
           침대 후보 찾기
           <ArrowRightIcon size={19} />
         </TrackedLink>
-        <Link
+        <TrackedLink
+          event="start_click"
+          payload={{ entry: "have_candidate" }}
           href="/have-candidate"
           className="mt-4 flex items-center justify-center gap-1 text-[15px] font-bold text-coral-700"
         >
           이미 후보가 있어요
           <ArrowRightIcon size={15} />
-        </Link>
+        </TrackedLink>
       </div>
 
       {/* 신뢰 문구 */}

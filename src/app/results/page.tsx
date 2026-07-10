@@ -142,6 +142,35 @@ export default async function ResultsPage({
         </div>
       )}
 
+      {/* 한 조건만 완화해서도 후보가 생기지 않는 강한 제약 조합 */}
+      {candidates.length === 0 && relaxSuggestions.length === 0 && (
+        <div className="mx-5 mt-4 rounded-[28px] bg-peach-50 p-5">
+          <p className="text-[14px] font-extrabold text-coral-700">
+            조건을 두 곳 이상 넓혀야 후보가 생겨요
+          </p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-sub">
+            임의의 상품을 보여드리지는 않을게요. 아래에서 가장 조정하기 쉬운
+            조건부터 바꿔보세요.
+          </p>
+          <div className="mt-3 space-y-2">
+            {[
+              { href: `/q/1?${query}`, label: "수납 조건 다시 고르기" },
+              { href: `/q/2?${query}`, label: "운반·조립 조건 다시 고르기" },
+              { href: `/q/3?${query}`, label: "예산·배송일 넓히기" },
+            ].map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex items-center justify-between rounded-2xl bg-white px-4 py-3.5 text-[13.5px] font-bold shadow-soft"
+              >
+                {item.label}
+                <ArrowRightIcon size={15} className="shrink-0 text-coral-700" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 하단 링크 */}
       <div className="mt-8 flex items-center justify-center gap-5">
         <Link
