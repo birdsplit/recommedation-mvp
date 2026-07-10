@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ExternalIcon } from "./icons";
 
 /**
@@ -27,22 +28,81 @@ export function SellerLinkButton({
 }) {
   const [open, setOpen] = useState(false);
   const continueRef = useRef<HTMLAnchorElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
+    const background = Array.from(document.body.children).filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement &&
+        !element.contains(overlayRef.current)
+    );
+    const backgroundState = background.map((element) => ({
+      element,
+      inert: element.inert,
+      ariaHidden: element.getAttribute("aria-hidden"),
+    }));
+
+    for (const element of background) {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    }
     document.body.style.overflow = "hidden";
-    continueRef.current?.focus();
+    continueRef.current?.focus({ preventScroll: true });
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => !element.hidden);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener("keydown", onKeyDown);
+
+    const onFocusIn = (event: FocusEvent) => {
+      if (!dialogRef.current?.contains(event.target as Node)) {
+        continueRef.current?.focus({ preventScroll: true });
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", onFocusIn);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", onFocusIn);
       document.body.style.overflow = previousOverflow;
-      previousFocus?.focus();
+      for (const { element, inert, ariaHidden } of backgroundState) {
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      }
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, [open]);
 
@@ -65,54 +125,58 @@ export function SellerLinkButton({
         <ExternalIcon size={13} />
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
-          onClick={() => setOpen(false)}
-        >
+      {open &&
+        createPortal(
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="이동 전 확인사항"
-            className="w-full max-w-[430px] rounded-t-[28px] bg-white px-6 pb-8 pt-6"
-            onClick={(e) => e.stopPropagation()}
+            ref={overlayRef}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+            onClick={() => setOpen(false)}
           >
-            <div className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-[#EADFD2]" />
-            <h3 className="text-[18px] font-extrabold">
-              이동 전에 이것만 확인하세요
-            </h3>
-            <ul className="mt-4 space-y-2.5">
-              {checkItems.map((item) => (
-                <li key={item} className="flex gap-2 text-[14px] leading-snug text-sub">
-                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-coral-400" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-4 rounded-2xl bg-cream px-4 py-3 text-[12px] leading-relaxed text-faint">
-              판매처와 제휴 관계가 없어요. 클릭 수는 서비스 개선을 위해 익명으로
-              기록돼요.
-            </p>
-            <div className="mt-5 space-y-2.5">
-              <a
-                ref={continueRef}
-                href={goHref}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[17px] font-extrabold text-white shadow-cta"
-              >
-                판매처에서 자세히 보기
-                <ExternalIcon size={15} />
-              </a>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="w-full rounded-full py-3 text-[14px] font-bold text-faint"
-              >
-                닫기
-              </button>
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="이동 전 확인사항"
+              className="w-full max-w-[430px] rounded-t-[28px] bg-white px-6 pb-8 pt-6"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mx-auto mb-5 h-1.5 w-10 rounded-full bg-[#EADFD2]" />
+              <h3 className="text-[18px] font-extrabold">
+                이동 전에 이것만 확인하세요
+              </h3>
+              <ul className="mt-4 space-y-2.5">
+                {checkItems.map((item) => (
+                  <li key={item} className="flex gap-2 text-[14px] leading-snug text-sub">
+                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-coral-400" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 rounded-2xl bg-cream px-4 py-3 text-[12px] leading-relaxed text-faint">
+                판매처와 제휴 관계가 없어요. 클릭 수는 서비스 개선을 위해 익명으로
+                기록돼요.
+              </p>
+              <div className="mt-5 space-y-2.5">
+                <a
+                  ref={continueRef}
+                  href={goHref}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[17px] font-extrabold text-white shadow-cta"
+                >
+                  판매처에서 자세히 보기
+                  <ExternalIcon size={15} />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="w-full rounded-full py-3 text-[14px] font-bold text-faint"
+                >
+                  닫기
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* 시안 A — 밝고 프렌들리 라운드형 (design-samples/a.html) */
+  /* 밝고 프렌들리한 라운드형 디자인 토큰 */
   --color-cream: #fbf8f3;
   --color-ink: #3d3229;
   --color-sub: #6b5f54;

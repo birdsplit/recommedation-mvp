@@ -79,10 +79,12 @@ export function TrustLine({ rec }: { rec: Recommendation }) {
 export function ProductCard({
   rec,
   rank,
+  candidateCount,
   query,
 }: {
   rec: Recommendation;
   rank: number;
+  candidateCount: number;
   query: string;
 }) {
   const p = rec.product;
@@ -93,7 +95,9 @@ export function ProductCard({
       {/* 뱃지 + 순위 */}
       <div className="flex items-center justify-between">
         <TierBadge tier={rec.tier} />
-        <span className="text-[11.5px] font-bold text-faint">추천 {rank} / 3</span>
+        <span className="text-[11.5px] font-bold text-faint">
+          추천 {rank} / {candidateCount}
+        </span>
       </div>
 
       {/* 이미지 */}

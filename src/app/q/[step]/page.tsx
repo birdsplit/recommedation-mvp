@@ -78,6 +78,7 @@ function OptionButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className={`flex w-full items-center gap-3.5 rounded-3xl border-2 bg-white px-5 py-4 text-left shadow-soft transition-colors ${
         selected ? "border-coral-500" : "border-transparent"
       }`}
@@ -114,6 +115,7 @@ function Pill({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className={`rounded-full border-2 px-4 py-2.5 text-[13.5px] font-bold transition-colors ${
         selected
           ? "border-coral-500 bg-peach-50 text-coral-700"

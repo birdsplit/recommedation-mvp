@@ -97,6 +97,7 @@ export default async function ResultsPage({
                 key={rec.product.id}
                 rec={rec}
                 rank={i + 1}
+                candidateCount={candidates.length}
                 query={query}
               />
             ))}

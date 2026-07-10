@@ -145,8 +145,9 @@ function CompareContent() {
       <>
         <CompareTable recs={recs} query={query} onRemove={remove} />
         <p className="mt-3 px-6 text-[11.5px] font-medium leading-relaxed text-faint">
-          🍑 살구색 줄은 상품마다 값이 다른 항목이에요. &ldquo;+별도&rdquo;는
-          판매처에서 확인이 필요한 비용이 남아 있다는 뜻이에요.
+          🍑 &ldquo;차이&rdquo; 표시와 살구색 줄은 상품마다 값이 다른
+          항목이에요. &ldquo;+별도&rdquo;는 판매처에서 확인이 필요한 비용이
+          남아 있다는 뜻이에요.
         </p>
       </>
     );
@@ -277,7 +278,7 @@ function CompareTable({
                       type="button"
                       onClick={() => onRemove(p.id)}
                       aria-label={`${p.name} 비교함에서 빼기`}
-                      className="shrink-0 text-[#CFC2B3]"
+                      className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#CFC2B3]"
                     >
                       <XCircleIcon size={18} />
                     </button>
@@ -324,7 +325,14 @@ function CompareTable({
                   scope="row"
                   className={`sticky left-0 z-10 border-t border-[#F6EEE4] py-2.5 pr-2 pl-4 text-left align-top text-[11.5px] font-bold whitespace-nowrap text-faint ${bg}`}
                 >
-                  {row.label}
+                  <span className="flex items-center gap-1.5">
+                    {row.label}
+                    {differs && (
+                      <span className="rounded-full bg-coral-600 px-1.5 py-0.5 text-[9.5px] font-extrabold text-white">
+                        차이
+                      </span>
+                    )}
+                  </span>
                 </th>
                 {recs.map((rec) => (
                   <td

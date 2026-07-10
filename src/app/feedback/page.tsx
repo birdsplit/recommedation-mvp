@@ -337,7 +337,7 @@ export default function FeedbackPage() {
         />
         <YesNoQuestion
           number={4}
-          title="후보 3개 중 실제로 고려할 상품이 있었나요?"
+          title="추천 후보 중 실제로 고려할 상품이 있었나요?"
           value={foundCandidate}
           onChange={setFoundCandidate}
         />
