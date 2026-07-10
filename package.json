@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm test",
-    "verify:m3": "node scripts/verify-m3.mjs"
+    "verify:m3": "node scripts/verify-m3.mjs",
+    "verify:m4": "node scripts/verify-m4.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
