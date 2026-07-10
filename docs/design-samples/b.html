@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>시안 B — 뉴트럴 유틸리티형 (토스풍) · 모두의침대</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink:    '#191F28', // 주 텍스트
+          sub:    '#4E5968', // 보조 텍스트
+          tert:   '#6B7684', // 3차 텍스트 (AA 확보용)
+          cap:    '#8B95A1', // 캡션
+          line:   '#E5E8EB', // 보더
+          canvas: '#F7F8FA', // 프레임 내부 배경
+          well:   '#F2F4F6', // 옅은 채움
+          prime:  '#3182F6', // 포인트 블루
+          deep:   '#1B64DA', // 텍스트용 진한 블루 (AA)
+          tint:   '#E8F1FD', // 블루 틴트 배경
+          warn:   '#D9730D'  // 주의 아이콘
+        },
+        fontFamily: {
+          sans: ['"Pretendard Variable"', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', '"Helvetica Neue"', '"Segoe UI"', '"Apple SD Gothic Neo"', '"Noto Sans KR"', 'sans-serif']
+        },
+        boxShadow: {
+          frame: '0 20px 48px rgba(25,31,40,0.12), 0 3px 10px rgba(25,31,40,0.06)',
+          card:  '0 1px 2px rgba(25,31,40,0.04)'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { word-break: keep-all; }
+</style>
+</head>
+<body class="min-h-screen bg-[#E6E8EC] font-sans text-ink">
+
+  <!-- 페이지 헤더 -->
+  <header class="mx-auto max-w-[960px] px-6 pt-12 pb-2 text-center">
+    <p class="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-cap">Modoo Bed · Design Sample</p>
+    <h1 class="text-[22px] font-bold tracking-[-0.02em] text-ink">시안 B — 뉴트럴 유틸리티형 (토스풍)</h1>
+    <p class="mt-2 text-[14px] leading-relaxed text-sub">금융앱처럼 담백한 그레이 위계와 블루 포인트 하나, 라벨–값 정보 구조로 신뢰를 쌓는 의사결정 도구 스타일</p>
+  </header>
+
+  <!-- 프레임 2개 -->
+  <main class="flex flex-wrap items-start justify-center gap-x-12 gap-y-10 px-6 py-10">
+
+    <!-- ═══════════════════ 프레임 1 · 랜딩 ═══════════════════ -->
+    <section class="w-[390px] shrink-0">
+      <p class="mb-3 pl-1 text-[13px] font-semibold text-tert">① 랜딩</p>
+
+      <div class="w-full overflow-hidden rounded-[28px] bg-canvas shadow-frame ring-1 ring-black/5">
+
+        <!-- 상태바 -->
+        <div class="flex items-center justify-between px-6 pb-1 pt-4">
+          <span class="text-[13px] font-semibold tabular-nums text-ink">9:41</span>
+          <svg width="62" height="12" viewBox="0 0 62 12" fill="none" aria-hidden="true">
+            <rect x="0" y="7" width="3" height="4" rx="1" fill="#191F28"/>
+            <rect x="4.5" y="5" width="3" height="6" rx="1" fill="#191F28"/>
+            <rect x="9" y="3" width="3" height="8" rx="1" fill="#191F28"/>
+            <rect x="13.5" y="1" width="3" height="10" rx="1" fill="#191F28" opacity="0.35"/>
+            <path d="M23 8.6a5 5 0 0 1 7 0" stroke="#191F28" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M21 6a8 8 0 0 1 11 0" stroke="#191F28" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/>
+            <circle cx="26.5" cy="10.6" r="1.2" fill="#191F28"/>
+            <rect x="40" y="1.5" width="18" height="9" rx="2.6" stroke="#191F28" opacity="0.4" stroke-width="1.2"/>
+            <rect x="42" y="3.5" width="11" height="5" rx="1.2" fill="#191F28"/>
+            <path d="M59.8 4.5v3" stroke="#191F28" opacity="0.4" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <div class="flex flex-col px-6 pb-9 pt-4">
+
+          <!-- 로고 -->
+          <div class="flex items-center gap-2">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+              <rect width="22" height="22" rx="6.5" fill="#3182F6"/>
+              <path d="M5.6 14.6v-2.4c0-1 .8-1.8 1.8-1.8h7.2c1 0 1.8.8 1.8 1.8v2.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M5.6 14.6v1.6M16.4 14.6v1.6" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+              <rect x="7" y="7" width="4.2" height="2.3" rx="1.15" fill="#fff"/>
+            </svg>
+            <span class="text-[15px] font-bold tracking-[-0.01em] text-ink">모두의침대</span>
+          </div>
+
+          <!-- 헤드라인 -->
+          <h2 class="mt-8 text-[25px] font-bold leading-[1.38] tracking-[-0.02em] text-ink">
+            내 생활조건에 맞는 침대,<br />3개만 골라드려요
+          </h2>
+          <p class="mt-3 text-[15px] leading-[1.6] text-sub">
+            수납 · 청소 · 운반 · 조립 · 총비용까지 한 번에 비교해요
+          </p>
+
+          <!-- 안내 칩 -->
+          <div class="mt-5 flex flex-wrap gap-2">
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-[7px] text-[13px] font-medium text-sub">
+              <svg class="h-3.5 w-3.5 text-prime" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 4.8V8l2.2 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              약 1분 소요
+            </span>
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-[7px] text-[13px] font-medium text-sub">
+              <svg class="h-3.5 w-3.5 text-prime" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="3" y="7.2" width="10" height="6.6" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M5.5 7V5.4a2.5 2.5 0 0 1 4.9-.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              로그인 없이 바로
+            </span>
+          </div>
+
+          <!-- 침대 일러스트 (얇은 라인 스타일) -->
+          <div class="mt-9 mb-1">
+            <svg class="mx-auto block" width="292" height="174" viewBox="0 0 320 190" fill="none" role="img" aria-label="서랍 수납 침대 일러스트">
+              <!-- 바닥선 -->
+              <line x1="18" y1="170" x2="302" y2="170" stroke="#D8DDE3" stroke-width="2" stroke-linecap="round"/>
+              <!-- 헤드보드 -->
+              <rect x="48" y="42" width="20" height="126" rx="7" stroke="#8B95A1" stroke-width="2.5"/>
+              <!-- 서랍 본체 -->
+              <rect x="68" y="106" width="204" height="36" rx="6" stroke="#8B95A1" stroke-width="2.5"/>
+              <line x1="170" y1="107.5" x2="170" y2="140.5" stroke="#CBD1D8" stroke-width="2"/>
+              <!-- 서랍 손잡이 (포인트) -->
+              <line x1="106" y1="124" x2="132" y2="124" stroke="#3182F6" stroke-width="3.5" stroke-linecap="round"/>
+              <line x1="208" y1="124" x2="234" y2="124" stroke="#3182F6" stroke-width="3.5" stroke-linecap="round"/>
+              <!-- 다리 -->
+              <line x1="264" y1="142" x2="264" y2="168" stroke="#8B95A1" stroke-width="2.5" stroke-linecap="round"/>
+              <!-- 매트리스 -->
+              <rect x="68" y="74" width="204" height="32" rx="10" fill="#FFFFFF" stroke="#8B95A1" stroke-width="2.5"/>
+              <!-- 베개 (포인트) -->
+              <rect x="80" y="52" width="58" height="24" rx="10" fill="#FFFFFF" stroke="#3182F6" stroke-width="2.5"/>
+            </svg>
+          </div>
+
+          <!-- 주 CTA -->
+          <button type="button" class="mt-9 h-[52px] w-full rounded-xl bg-prime text-[16px] font-bold text-white">
+            침대 후보 찾기
+          </button>
+
+          <!-- 보조 링크 -->
+          <a href="#" class="mx-auto mt-4 inline-flex items-center gap-1 px-2 py-1 text-[14px] font-semibold text-deep">
+            이미 후보가 있어요
+            <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+
+          <!-- 신뢰 문구 -->
+          <div class="mt-8 flex items-center justify-center gap-1.5 border-t border-line pt-5">
+            <svg class="h-3.5 w-3.5 shrink-0 text-cap" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 1.8 13 3.6v4c0 3.1-2.1 5.2-5 6.4-2.9-1.2-5-3.3-5-6.4v-4L8 1.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="m5.8 7.7 1.6 1.6 2.8-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p class="text-[12.5px] text-cap">현재 슈퍼싱글 프레임 10개를 직접 검토해 추천하고 있어요</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ 프레임 2 · 추천 결과 ═══════════════════ -->
+    <section class="w-[390px] shrink-0">
+      <p class="mb-3 pl-1 text-[13px] font-semibold text-tert">② 추천 결과</p>
+
+      <div class="w-full overflow-hidden rounded-[28px] bg-canvas shadow-frame ring-1 ring-black/5">
+
+        <!-- 상태바 + 상단 바 (흰색 영역) -->
+        <div class="border-b border-line bg-white">
+          <div class="flex items-center justify-between px-6 pb-1 pt-4">
+            <span class="text-[13px] font-semibold tabular-nums text-ink">9:41</span>
+            <svg width="62" height="12" viewBox="0 0 62 12" fill="none" aria-hidden="true">
+              <rect x="0" y="7" width="3" height="4" rx="1" fill="#191F28"/>
+              <rect x="4.5" y="5" width="3" height="6" rx="1" fill="#191F28"/>
+              <rect x="9" y="3" width="3" height="8" rx="1" fill="#191F28"/>
+              <rect x="13.5" y="1" width="3" height="10" rx="1" fill="#191F28" opacity="0.35"/>
+              <path d="M23 8.6a5 5 0 0 1 7 0" stroke="#191F28" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M21 6a8 8 0 0 1 11 0" stroke="#191F28" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/>
+              <circle cx="26.5" cy="10.6" r="1.2" fill="#191F28"/>
+              <rect x="40" y="1.5" width="18" height="9" rx="2.6" stroke="#191F28" opacity="0.4" stroke-width="1.2"/>
+              <rect x="42" y="3.5" width="11" height="5" rx="1.2" fill="#191F28"/>
+              <path d="M59.8 4.5v3" stroke="#191F28" opacity="0.4" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="relative flex h-[52px] items-center justify-center">
+            <button type="button" aria-label="뒤로 가기" class="absolute left-2.5 p-2 text-ink">
+              <svg class="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <span class="text-[16px] font-bold tracking-[-0.01em] text-ink">추천 결과</span>
+          </div>
+        </div>
+
+        <!-- 본문 -->
+        <div class="px-5 pb-0 pt-4">
+
+          <!-- 내 조건 요약 -->
+          <div class="rounded-xl border border-line bg-white px-4 py-3.5 shadow-card">
+            <div class="flex items-center justify-between">
+              <span class="text-[12px] font-semibold text-cap">내 조건</span>
+              <button type="button" class="-mr-1 px-1 text-[13px] font-semibold text-deep">수정</button>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12.5px] font-medium text-sub">서랍 수납</span>
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12.5px] font-medium text-sub">직접 조립 가능</span>
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12.5px] font-medium text-sub">총비용 20만원 이하</span>
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12.5px] font-medium text-sub">2주 안 배송</span>
+            </div>
+          </div>
+
+          <!-- 안내 문구 -->
+          <p class="mt-4 mb-3 px-1 text-[15px] font-medium leading-relaxed text-ink">
+            검토한 침대 <span class="font-bold tabular-nums">10개</span> 중 조건에 맞는 <span class="font-bold tabular-nums text-deep">3개</span>를 골랐어요
+          </p>
+
+          <!-- 대표 카드 -->
+          <div class="rounded-xl border border-line bg-white p-4 shadow-card">
+
+            <!-- 뱃지 -->
+            <div class="flex items-center justify-between">
+              <span class="inline-flex items-center gap-1 rounded-md bg-tint px-2 py-1 text-[12px] font-bold text-deep">
+                <svg class="h-3 w-3" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="m3.5 8.5 3 3 6-6.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                매우 적합
+              </span>
+            </div>
+
+            <!-- 상품 이미지 플레이스홀더 -->
+            <div class="mt-3 flex h-[150px] items-center justify-center rounded-lg bg-well">
+              <svg width="192" height="114" viewBox="0 0 220 130" fill="none" role="img" aria-label="침대 상품 이미지 자리">
+                <line x1="12" y1="116" x2="208" y2="116" stroke="#DDE1E6" stroke-width="2" stroke-linecap="round"/>
+                <rect x="32" y="28" width="14" height="88" rx="5" stroke="#AEB6BF" stroke-width="2"/>
+                <rect x="46" y="72" width="144" height="26" rx="5" stroke="#AEB6BF" stroke-width="2"/>
+                <line x1="118" y1="73" x2="118" y2="97" stroke="#D3D8DE" stroke-width="1.8"/>
+                <line x1="72" y1="85" x2="92" y2="85" stroke="#8B95A1" stroke-width="2.6" stroke-linecap="round"/>
+                <line x1="144" y1="85" x2="164" y2="85" stroke="#8B95A1" stroke-width="2.6" stroke-linecap="round"/>
+                <line x1="184" y1="98" x2="184" y2="115" stroke="#AEB6BF" stroke-width="2" stroke-linecap="round"/>
+                <rect x="46" y="50" width="144" height="22" rx="8" fill="#fff" stroke="#AEB6BF" stroke-width="2"/>
+                <rect x="54" y="36" width="40" height="17" rx="7" fill="#fff" stroke="#AEB6BF" stroke-width="2"/>
+              </svg>
+            </div>
+
+            <!-- 상품명 · 판매처 -->
+            <div class="mt-3.5">
+              <h3 class="text-[17px] font-bold leading-snug tracking-[-0.01em] text-ink">루미 슈퍼싱글 서랍 수납침대</h3>
+              <p class="mt-1 text-[13px] text-tert">판매처 · 오늘의가구</p>
+            </div>
+
+            <!-- 비용 분해 -->
+            <div class="mt-4 overflow-hidden rounded-lg border border-line">
+              <dl class="divide-y divide-line text-[14px]">
+                <div class="flex items-center justify-between px-3.5 py-[9px]">
+                  <dt class="text-sub">상품가</dt>
+                  <dd class="font-medium tabular-nums text-ink">159,000원</dd>
+                </div>
+                <div class="flex items-center justify-between px-3.5 py-[9px]">
+                  <dt class="text-sub">배송비</dt>
+                  <dd class="font-medium tabular-nums text-ink">30,000원</dd>
+                </div>
+                <div class="flex items-center justify-between px-3.5 py-[9px]">
+                  <dt class="text-sub">설치비</dt>
+                  <dd class="font-medium text-ink">없음<span class="text-tert"> (직접 조립)</span></dd>
+                </div>
+                <div class="flex items-center justify-between px-3.5 py-[9px]">
+                  <dt class="text-sub">매트리스</dt>
+                  <dd class="font-medium text-ink">미포함</dd>
+                </div>
+              </dl>
+              <div class="flex items-center justify-between border-t border-line bg-canvas px-3.5 py-3">
+                <span class="text-[14px] font-semibold text-ink">예상 총비용</span>
+                <span class="text-[18px] font-bold tabular-nums text-deep">189,000원</span>
+              </div>
+            </div>
+
+            <!-- 메타 -->
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12px] font-medium text-sub">배송 5~7일</span>
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12px] font-medium text-sub">서랍 2단 수납</span>
+              <span class="rounded-md bg-well px-2 py-[5px] text-[12px] font-medium text-sub">하부 막힘(먼지 차단)</span>
+            </div>
+
+            <!-- 맞는 이유 -->
+            <div class="mt-4 border-t border-line pt-4">
+              <p class="mb-2.5 text-[12px] font-semibold text-cap">맞는 이유</p>
+              <ul class="space-y-2.5">
+                <li class="flex gap-2">
+                  <svg class="mt-[1px] h-[18px] w-[18px] shrink-0 text-prime" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.7"/>
+                    <path d="m6.6 10.2 2.3 2.3 4.5-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="text-[14px] leading-[1.55] text-ink">서랍 2단으로 자잘한 짐을 깔끔하게 정리할 수 있어요</span>
+                </li>
+                <li class="flex gap-2">
+                  <svg class="mt-[1px] h-[18px] w-[18px] shrink-0 text-prime" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.7"/>
+                    <path d="m6.6 10.2 2.3 2.3 4.5-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="text-[14px] leading-[1.55] text-ink">배송비 포함 총비용이 예산 20만원 안에 들어와요</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- 주의 -->
+            <div class="mt-4 border-t border-line pt-4">
+              <p class="mb-2.5 text-[12px] font-semibold text-cap">주의할 점</p>
+              <div class="flex gap-2">
+                <svg class="mt-[1px] h-[18px] w-[18px] shrink-0 text-warn" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M8.9 3.6c.5-.85 1.7-.85 2.2 0l6.2 10.9c.5.87-.13 1.95-1.1 1.95H3.8c-.97 0-1.6-1.08-1.1-1.95L8.9 3.6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <path d="M10 8v3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  <circle cx="10" cy="13.5" r="0.9" fill="currentColor"/>
+                </svg>
+                <span class="text-[14px] leading-[1.55] text-ink">리뷰에서 조립 난이도 언급이 있어요 — 기본 공구가 필요해요</span>
+              </div>
+            </div>
+
+            <!-- 필수조건 충족 -->
+            <div class="mt-4 flex items-center gap-1.5 rounded-lg bg-tint px-3.5 py-2.5">
+              <svg class="h-4 w-4 shrink-0 text-deep" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="m3.5 8.5 3 3 6-6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="text-[13px] font-semibold text-deep">내 필수조건 4개 모두 충족</span>
+            </div>
+
+            <!-- 버튼 3개 -->
+            <div class="mt-4 space-y-2">
+              <button type="button" class="h-12 w-full rounded-xl bg-prime text-[15px] font-bold text-white">자세히 판단하기</button>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" class="h-11 rounded-xl bg-well text-[14px] font-semibold text-ink">비교함에 담기</button>
+                <button type="button" class="h-11 rounded-xl bg-well text-[14px] font-semibold text-ink">판매처 보기</button>
+              </div>
+            </div>
+
+            <!-- 출처 라인 -->
+            <p class="mt-3.5 text-center text-[11.5px] text-cap">출처: 공식몰 상세페이지 · 2026.7.8 확인</p>
+          </div>
+
+          <!-- 2번째 후보 카드 (윗부분만 노출 — 스크롤 암시) -->
+          <div class="mt-3 h-[84px] overflow-hidden">
+            <div class="rounded-t-xl border border-b-0 border-line bg-white p-4 shadow-card">
+              <span class="inline-flex items-center rounded-md bg-well px-2 py-1 text-[12px] font-bold text-sub">조건부 적합</span>
+              <h3 class="mt-3 text-[16px] font-bold leading-snug tracking-[-0.01em] text-ink">네스트 원목 서랍침대 슈퍼싱글</h3>
+              <p class="mt-1 text-[13px] text-tert">판매처 · 리빙포레</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="pb-12 text-center text-[12px] text-cap">모두의침대 · 시안 B 미리보기 · 390px 프레임 기준</footer>
+
+</body>
+</html>
