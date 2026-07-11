@@ -4,6 +4,9 @@
 
 사용자는 로그인 없이 추천 여정을 이용합니다. 관리자는 `/admin`에서 상품 정보와 공개 상태를 관리하고, 익명 행동 퍼널을 확인하거나 이벤트·피드백 CSV를 내려받을 수 있습니다.
 
+- 운영 URL: [https://recommendation-mvp.vercel.app](https://recommendation-mvp.vercel.app)
+- 배포 상태: Vercel Production과 호스팅 Supabase 연결 완료, M0–M5 구현·검증 완료
+
 - 기획 기준: [침대 구매 의사결정 MVP 앱 기획서](docs/%EC%B9%A8%EB%8C%80_%EA%B5%AC%EB%A7%A4%EC%9D%98%EC%82%AC%EA%B2%B0%EC%A0%95_MVP_%EC%95%B1_%EA%B8%B0%ED%9A%8D%EC%84%9C.md)
 - 현재 작업 상태: [인수인계 문서](docs/handoff.md)
 
@@ -11,9 +14,9 @@
 
 - Next.js 16 App Router, React 19, TypeScript
 - Tailwind CSS v4, Pretendard Variable
-- Supabase Postgres (`service_role`을 사용하는 서버 전용 데이터 접근)
+- Supabase Postgres (legacy `service_role` 또는 새 secret key를 사용하는 서버 전용 데이터 접근)
 - Vitest, ESLint
-- Vercel 배포 기준
+- Vercel Production 배포
 
 ## 사전 준비
 
@@ -133,6 +136,19 @@ npm run verify:m5
 
 세 통합 검증기는 로컬 Next 개발 서버를 임시 포트에 띄우고 검증 행을 정리합니다. 운영 Supabase에 연결해 실행하지 말고 로컬 또는 전용 테스트 프로젝트에서만 사용하세요.
 
+### 프로덕션 스모크 검증
+
+운영 배포는 다음 명령으로 반복 검증할 수 있습니다. 임시 이벤트·피드백·비공개 상품을 운영 DB에 기록한 뒤 종료 시 정리하므로 명시적인 확인 값이 필요합니다.
+
+```powershell
+$env:PRODUCTION_URL = "https://recommendation-mvp.vercel.app"
+$env:PRODUCTION_SMOKE_CONFIRM = "run-production-smoke"
+# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_PASSWORD도 현재 셸에 설정
+npm run verify:production
+```
+
+현재 배포에서는 공개 3단계 추천 여정과 3개 결과, 상세·비교, 이벤트·피드백 저장, 관리자 인증·CSV, 출처 없는 비공개 초안의 공개 차단, 상품 수정·상태 변경·정리, 로그아웃까지 통과했습니다. 별도로 `npm run check`의 테스트 100개, `npm run build`, 데스크톱과 모바일 390px 브라우저 QA를 완료했습니다.
+
 ## 관리자 기능과 경로
 
 - `/admin/login`: 환경변수 비밀번호로 로그인
@@ -170,24 +186,35 @@ npx supabase db push --include-seed
 
 CLI를 연결하지 않을 경우 Supabase SQL Editor에서 [`supabase/schema.sql`](supabase/schema.sql)을 실행한 뒤 [`supabase/seed.sql`](supabase/seed.sql)을 최초 한 번 실행합니다. 이미 CLI migration을 적용했으면 같은 SQL을 다시 실행하지 마세요.
 
-적용 후 Project Settings의 API 정보에서 프로젝트 URL과 `service_role` 키를 가져와 운영 환경변수에 사용합니다. `anon` 또는 publishable 키로 대체하지 마세요.
+적용 후 Project Settings의 API 정보에서 프로젝트 URL과 서버용 키를 가져와 운영 환경변수에 사용합니다. legacy `service_role` 키와 새 `sb_secret_...` secret key 모두 서버에서 사용할 수 있으며, 앱의 환경변수 이름은 호환성을 위해 `SUPABASE_SERVICE_ROLE_KEY`로 유지합니다. `anon` 또는 publishable 키로 대체하지 마세요.
+
+현재 운영 Supabase에는 초기 schema, 공개 상품 출처 제약 migration과 최초 seed 10개가 적용되어 있으며 `db push --dry-run` 기준 최신 상태입니다. 공개 상품은 공백이 아닌 정보 출처가 있어야 하고, 익명 키의 테이블 직접 읽기·쓰기는 RLS로 차단되며, 앱의 서버 전용 키를 통한 Route Handler와 Server Action만 데이터에 접근합니다.
 
 ## Vercel 배포
+
+현재 GitHub `main`은 Vercel 프로젝트에 연결되어 있으며 [운영 배포](https://recommendation-mvp.vercel.app)가 활성화되어 있습니다. 아래는 새 환경을 다시 구성할 때의 절차입니다.
 
 1. 배포할 커밋을 GitHub 원격 저장소에 push합니다.
 2. Vercel에서 저장소를 Import하고 Framework Preset이 Next.js인지 확인합니다.
 3. Vercel Project Settings → Environment Variables에 아래 네 값을 등록합니다.
    - `SUPABASE_URL`: 클라우드 Supabase URL
-   - `SUPABASE_SERVICE_ROLE_KEY`: 클라우드 `service_role` 키
+   - `SUPABASE_SERVICE_ROLE_KEY`: 클라우드 legacy `service_role` 또는 새 secret key
    - `ADMIN_PASSWORD`: 로컬과 별도로 관리할 강한 운영 비밀번호
    - `ADMIN_COOKIE_SECRET`: 독립적으로 생성한 운영 서명 키
 4. Production 환경에 배포하고 `/`, `/admin/login`, 추천 여정, 판매처 이동, 피드백, 관리자 상품 수정과 CSV를 스모크 테스트합니다.
 
 Preview 배포가 운영 DB를 변경하면 안 되는 경우 Preview에는 별도 Supabase 프로젝트를 연결하거나 민감 환경변수를 등록하지 마세요. 비밀값을 바꾼 뒤에는 재배포해야 하며, `ADMIN_COOKIE_SECRET`을 바꾸면 기존 관리자 세션이 모두 무효화됩니다.
 
+Windows에서 Vercel CLI의 표준 입력으로 비밀값을 등록할 때는 PowerShell 인코딩으로 BOM이 값 앞에 붙지 않게 하세요. Vercel Dashboard를 사용하거나 Node의 `process.stdout.write`처럼 BOM 없는 입력 경로를 사용하고, 등록 후에는 값을 출력하지 않은 채 환경변수 이름과 재배포 상태만 확인합니다.
+
+## 완료 범위와 후속 검증
+
+M0–M5의 제품 구현, 로컬·통합·브라우저 QA, 호스팅 DB 적용, 운영 배포와 스모크 검증은 완료되었습니다. 실상품 약 30개로 데이터 품질을 확장하고 실제 자취생 대상 사용자 조사·구매 후 검증을 수행하는 일은 MVP 구현의 미완료 항목이 아니라 다음 단계의 외부 제품 검증입니다.
+
 ## 운영 주의사항
 
-- [`supabase/seed.sql`](supabase/seed.sql)과 [`src/lib/seed-data.ts`](src/lib/seed-data.ts)는 같은 10개 상품을 유지해야 하며 `npm run check`의 스키마 동기화 테스트가 이를 감시합니다.
+- [`supabase/seed.sql`](supabase/seed.sql)과 [`src/lib/seed-data.ts`](src/lib/seed-data.ts)는 같은 10개 상품으로 함께 갱신해야 합니다. `npm run check`는 schema/migration 관계와 TypeScript 공개 시드의 출처 필수 조건을 검증합니다.
 - 사용자 추천에는 `status='public'` 상품만 포함됩니다. `hidden`, `sold_out`, `needs_check`는 추천 결과에서 제외됩니다.
+- 공개 상품에는 공백이 아닌 `source_note`와 마지막 확인일이 반드시 있어야 합니다. 출처 없는 초안은 `hidden`으로만 저장할 수 있습니다.
 - 알 수 없는 설치비·매트리스 가격을 임의로 합산하지 않습니다.
 - 현재 `npm audit`에는 Next.js 내부 PostCSS 경로의 moderate 경고 2건이 남아 있습니다. `npm audit fix --force`는 Next.js를 `9.3.3`으로 강제 다운그레이드하므로 실행하지 마세요. 해결 버전이 나오면 별도 브랜치에서 Next.js를 정상 업그레이드하고 전체 검증을 다시 수행합니다.
