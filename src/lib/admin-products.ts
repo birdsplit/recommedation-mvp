@@ -42,6 +42,13 @@ export type AdminProductResult =
   | { state: "setup-required"; product: null }
   | { state: "error"; product: null; message: string };
 
+export class PublicProductSourceRequiredError extends Error {
+  constructor() {
+    super("공개 상품에는 정보 출처를 입력해 주세요.");
+    this.name = "PublicProductSourceRequiredError";
+  }
+}
+
 const INSTALLATION_SERVICES = ["none", "paid", "included", "unknown"] as const;
 const CAPACITIES = ["large", "medium", "small", "none"] as const;
 const LEVELS = ["easy", "medium", "hard"] as const;
@@ -60,6 +67,22 @@ const ROBOT_FITS = Object.keys(ROBOT_FIT_LABELS) as NonNullable<
 >[];
 const REVIEW_RISK_KEYS = Object.keys(REVIEW_RISKS) as ReviewRisk[];
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
+
+export function hasRequiredPublicSource(
+  status: ProductStatus,
+  sourceNote: string | null
+): boolean {
+  return status !== "public" || Boolean(sourceNote?.trim());
+}
+
+function assertRequiredPublicSource(
+  status: ProductStatus,
+  sourceNote: string | null
+): void {
+  if (!hasRequiredPublicSource(status, sourceNote)) {
+    throw new PublicProductSourceRequiredError();
+  }
+}
 
 function dateOnlyToUtc(value: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -576,6 +599,16 @@ export function parseProductFormData(
     errors,
     1_000
   );
+  if (
+    status &&
+    !hasRequiredPublicSource(status as ProductStatus, sourceNote)
+  ) {
+    setError(
+      errors,
+      "source_note",
+      "공개 상품에는 정보 출처를 입력해 주세요."
+    );
+  }
 
   if (Object.keys(errors).length > 0) {
     return { success: false, errors };
@@ -685,6 +718,7 @@ export async function getAdminProduct(id: string): Promise<AdminProductResult> {
 export async function insertAdminProduct(
   values: ProductFormValues
 ): Promise<{ id: string }> {
+  assertRequiredPublicSource(values.status, values.source_note);
   const { data, error } = await supabaseAdmin()
     .from("products")
     .insert(values)
@@ -698,6 +732,7 @@ export async function updateAdminProduct(
   id: string,
   values: ProductFormValues
 ): Promise<void> {
+  assertRequiredPublicSource(values.status, values.source_note);
   const { data, error } = await supabaseAdmin()
     .from("products")
     .update(values)
@@ -712,7 +747,22 @@ export async function updateAdminProductStatus(
   id: string,
   status: ProductStatus
 ): Promise<void> {
-  const { data, error } = await supabaseAdmin()
+  const client = supabaseAdmin();
+
+  if (status === "public") {
+    const { data: product, error: readError } = await client
+      .from("products")
+      .select("source_note")
+      .eq("id", id)
+      .maybeSingle();
+    if (readError) {
+      throw new Error(`상품 출처 확인 실패: ${readError.message}`);
+    }
+    if (!product) throw new Error("상태를 변경할 상품을 찾지 못했습니다.");
+    assertRequiredPublicSource(status, product.source_note);
+  }
+
+  const { data, error } = await client
     .from("products")
     .update({ status })
     .eq("id", id)

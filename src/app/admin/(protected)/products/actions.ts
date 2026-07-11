@@ -7,6 +7,7 @@ import {
   insertAdminProduct,
   parseProductFormData,
   parseProductStatus,
+  PublicProductSourceRequiredError,
   updateAdminProduct,
   updateAdminProductStatus,
   type ProductFieldErrors,
@@ -128,13 +129,18 @@ export async function changeProductStatusAction(
     redirect("/admin/products?statusResult=setup-required");
   }
 
-  let failed = false;
+  let failureReason: "source-required" | "error" | null = null;
   try {
     await updateAdminProductStatus(id, status);
-  } catch {
-    failed = true;
+  } catch (error) {
+    failureReason =
+      error instanceof PublicProductSourceRequiredError
+        ? "source-required"
+        : "error";
   }
-  if (failed) redirect("/admin/products?statusResult=error");
+  if (failureReason) {
+    redirect(`/admin/products?statusResult=${failureReason}`);
+  }
 
   revalidateProductPaths(id);
   redirect("/admin/products?statusResult=changed");

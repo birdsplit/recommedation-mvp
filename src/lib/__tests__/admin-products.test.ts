@@ -1,15 +1,27 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { supabaseAdminMock } = vi.hoisted(() => ({
+  supabaseAdminMock: vi.fn(),
+}));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/supabase", () => ({
+  isSupabaseConfigured: vi.fn(() => true),
+  supabaseAdmin: supabaseAdminMock,
+}));
 
 import {
   createEmptyProductFormValues,
+  hasRequiredPublicSource,
   isProductVerificationStale,
   parseProductFormData,
   parseProductStatus,
+  PublicProductSourceRequiredError,
   todayInSeoul,
+  updateAdminProductStatus,
   verificationAgeInDays,
 } from "@/lib/admin-products";
+import { SEED_PRODUCTS } from "@/lib/seed-data";
 
 const PRODUCT_WRITE_FIELDS = [
   "name",
@@ -98,6 +110,10 @@ function validProductForm(): FormData {
   form.append("review_risks", "delivery_delay");
   return form;
 }
+
+beforeEach(() => {
+  supabaseAdminMock.mockReset();
+});
 
 describe("parseProductFormData", () => {
   it("모든 상품 필드를 타입에 맞게 정규화한다", () => {
@@ -253,6 +269,32 @@ describe("parseProductFormData", () => {
     }
   });
 
+  it("공개 상품은 공백이 아닌 정보 출처가 있어야 한다", () => {
+    const form = validProductForm();
+    form.set("status", "public");
+    form.set("source_note", " \n\t ");
+
+    const result = parseProductFormData(form);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.source_note).toContain("공개 상품");
+    }
+  });
+
+  it("비공개 초안은 정보 출처를 비워 둘 수 있다", () => {
+    const form = validProductForm();
+    form.set("status", "hidden");
+    form.delete("source_note");
+
+    const result = parseProductFormData(form);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.source_note).toBeNull();
+    }
+  });
+
   it("서울 오늘보다 미래인 마지막 확인일을 거부한다", () => {
     const form = validProductForm();
     form.set("last_verified_at", "2026-07-12");
@@ -267,6 +309,26 @@ describe("parseProductFormData", () => {
 });
 
 describe("상품 관리자 보조 함수", () => {
+  it("공개 상태에만 공백이 아닌 출처를 요구한다", () => {
+    expect(hasRequiredPublicSource("public", null)).toBe(false);
+    expect(hasRequiredPublicSource("public", "   ")).toBe(false);
+    expect(hasRequiredPublicSource("public", "공식몰 상세페이지")).toBe(true);
+    expect(hasRequiredPublicSource("hidden", null)).toBe(true);
+    expect(hasRequiredPublicSource("sold_out", null)).toBe(true);
+    expect(hasRequiredPublicSource("needs_check", null)).toBe(true);
+  });
+
+  it("기본 공개 시드 10개는 모두 정보 출처가 있다", () => {
+    const publicSeeds = SEED_PRODUCTS.filter(({ status }) => status === "public");
+
+    expect(publicSeeds).toHaveLength(10);
+    expect(
+      publicSeeds.every(({ source_note }) =>
+        hasRequiredPublicSource("public", source_note)
+      )
+    ).toBe(true);
+  });
+
   it("14일째는 최신이고 14일을 넘으면 오래된 정보다", () => {
     expect(isProductVerificationStale("2026-06-27", "2026-07-11")).toBe(false);
     expect(isProductVerificationStale("2026-06-26", "2026-07-11")).toBe(true);
@@ -293,5 +355,43 @@ describe("상품 관리자 보조 함수", () => {
     expect(parseProductStatus("public")).toBe("public");
     expect(parseProductStatus("archived")).toBeNull();
     expect(parseProductStatus(null)).toBeNull();
+  });
+});
+
+describe("updateAdminProductStatus", () => {
+  it("출처가 없는 상품은 공개 상태 업데이트 전에 거부한다", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { source_note: "  " },
+      error: null,
+    });
+    const select = vi.fn(() => ({
+      eq: vi.fn(() => ({ maybeSingle })),
+    }));
+    const from = vi.fn(() => ({ select }));
+    supabaseAdminMock.mockReturnValue({ from });
+
+    await expect(
+      updateAdminProductStatus("00000000-0000-4000-8000-000000000001", "public")
+    ).rejects.toBeInstanceOf(PublicProductSourceRequiredError);
+    expect(select).toHaveBeenCalledWith("source_note");
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
+  it("비공개 전환은 출처 조회 없이 허용한다", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { id: "00000000-0000-4000-8000-000000000001" },
+      error: null,
+    });
+    const select = vi.fn(() => ({ maybeSingle }));
+    const eq = vi.fn(() => ({ select }));
+    const update = vi.fn(() => ({ eq }));
+    const from = vi.fn(() => ({ update }));
+    supabaseAdminMock.mockReturnValue({ from });
+
+    await expect(
+      updateAdminProductStatus("00000000-0000-4000-8000-000000000001", "hidden")
+    ).resolves.toBeUndefined();
+    expect(update).toHaveBeenCalledWith({ status: "hidden" });
+    expect(from).toHaveBeenCalledTimes(1);
   });
 });

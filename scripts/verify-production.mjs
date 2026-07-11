@@ -264,7 +264,7 @@ function productFields(overrides = {}) {
     recommended_for: "Automated production smoke verification",
     not_recommended_for: "Real purchase",
     data_confidence: "confirmed",
-    source_note: csvMarker,
+    source_note: "",
     last_verified_at: "2020-01-01",
     status: "hidden",
     ...overrides,
@@ -486,7 +486,7 @@ async function verifyAdminProductMutation(adminCookie) {
 
   const { data: createdProduct, error: createdProductError } = await db
     .from("products")
-    .select("id,name,price,status,last_verified_at,review_risks")
+    .select("id,name,price,status,source_note,last_verified_at,review_risks")
     .eq("seller_url", sellerUrl)
     .maybeSingle();
   assert(!createdProductError, `Could not read the smoke product: ${createdProductError?.message}`);
@@ -494,7 +494,48 @@ async function verifyAdminProductMutation(adminCookie) {
   createdProductId = createdProduct.id;
   assert(createdProduct.name === productName, "Created product name does not match.");
   assert(createdProduct.status === "hidden", "Smoke product was not created hidden.");
+  assert(createdProduct.source_note === null, "Hidden smoke draft unexpectedly has a source.");
   resolveLocation(createResponse, `/admin/products/${createdProductId}`, "Product creation");
+
+  const draftProductsHtml = await requireHtml(
+    "/admin/products",
+    "Admin products with source-less draft",
+    adminCookie
+  );
+  const publishDraftForm = findForm(
+    draftProductsHtml,
+    (form) => form.body.includes(`id="status-${createdProductId}"`),
+    "Source-less draft status"
+  );
+  const publishDraftResponse = await submitHtmlForm({
+    pageUrl: `${appUrl}/admin/products`,
+    form: publishDraftForm,
+    cookie: adminCookie,
+    fields: [["status", "public"]],
+  });
+  assert(
+    [303, 307].includes(publishDraftResponse.status),
+    `Source-less public transition returned HTTP ${publishDraftResponse.status}.`
+  );
+  const publishDraftLocation = resolveLocation(
+    publishDraftResponse,
+    "/admin/products",
+    "Source-less public transition"
+  );
+  assert(
+    publishDraftLocation.searchParams.get("statusResult") === "source-required",
+    "Source-less public transition did not return the source-required result."
+  );
+  const { data: guardedDraft, error: guardedDraftError } = await db
+    .from("products")
+    .select("status,source_note")
+    .eq("id", createdProductId)
+    .single();
+  assert(!guardedDraftError, `Could not read the guarded smoke draft: ${guardedDraftError?.message}`);
+  assert(
+    guardedDraft.status === "hidden" && guardedDraft.source_note === null,
+    "A source-less smoke draft became public."
+  );
 
   const editPath = `/admin/products/${createdProductId}`;
   const editPageUrl = `${appUrl}${editPath}`;
@@ -511,6 +552,7 @@ async function verifyAdminProductMutation(adminCookie) {
     fields: productFields({
       name: updatedProductName,
       price: "234567",
+      source_note: csvMarker,
       last_verified_at: new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Seoul",
         year: "numeric",
@@ -527,14 +569,15 @@ async function verifyAdminProductMutation(adminCookie) {
 
   const { data: updatedProduct, error: updatedProductError } = await db
     .from("products")
-    .select("name,price,status")
+    .select("name,price,status,source_note")
     .eq("id", createdProductId)
     .single();
   assert(!updatedProductError, `Could not read the updated smoke product: ${updatedProductError?.message}`);
   assert(
-    updatedProduct.name === updatedProductName &&
+      updatedProduct.name === updatedProductName &&
       updatedProduct.price === 234567 &&
-      updatedProduct.status === "hidden",
+      updatedProduct.status === "hidden" &&
+      updatedProduct.source_note === csvMarker,
     "Production product update did not persist or exposed the smoke product."
   );
 
@@ -665,7 +708,7 @@ try {
   await logoutAdmin(adminCookie);
 
   console.log(
-    "Production smoke passed: public 3-step flow, 3 results, detail/compare data, tracking, feedback, admin auth/CSV, hidden product create/update/status, and logout."
+    "Production smoke passed: public 3-step flow, 3 results, detail/compare data, tracking, feedback, admin auth/CSV, hidden draft source guard, product update/status, and logout."
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

@@ -77,7 +77,12 @@ create table products (
 
   check (delivery_days_min <= delivery_days_max),
   check (self_assembly is distinct from 'not_possible' or assembly_service_available),
-  check (installation_service not in ('paid','included') or assembly_service_available)
+  check (installation_service not in ('paid','included') or assembly_service_available),
+  constraint products_public_source_note_check
+    check (
+      status <> 'public'
+      or (source_note is not null and source_note ~ '[^[:space:]]')
+    )
 );
 
 -- ---------- 이벤트 (기획서 §11.1의 12종과 1:1) ----------

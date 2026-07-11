@@ -89,6 +89,8 @@ export default async function AdminProductsPage({
             ? "Supabase 설정을 확인해 주세요."
             : statusResult === "invalid"
               ? "올바르지 않은 상품 상태 요청입니다."
+              : statusResult === "source-required"
+                ? "공개하려면 상품 수정 화면에서 정보 출처를 먼저 입력해 주세요."
               : "상품 상태를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요."}
         </p>
       )}
