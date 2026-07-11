@@ -75,11 +75,16 @@ describe("관리자 퍼널", () => {
       ["questions_complete", 6],
     ]);
     const select = vi.fn();
+    const contains = vi.fn();
     const eq = vi.fn();
     const from = vi.fn(() => {
       const query = {
         select: (...args: unknown[]) => {
           select(...args);
+          return query;
+        },
+        contains: (...args: unknown[]) => {
+          contains(...args);
           return query;
         },
         eq: async (_column: string, eventType: string) => {
@@ -105,6 +110,8 @@ describe("관리자 퍼널", () => {
     ]);
     expect(from).toHaveBeenCalledTimes(10);
     expect(select).toHaveBeenCalledWith("id", { count: "exact", head: true });
+    expect(contains).toHaveBeenCalledOnce();
+    expect(contains).toHaveBeenCalledWith("payload", { entry: "questions" });
     expect(eq).toHaveBeenCalledWith("event_type", "feedback_submit");
   });
 });

@@ -43,7 +43,7 @@ export default function HaveCandidatePage() {
 
         <TrackedLink
           event="start_click"
-          payload={{ from: "have_candidate" }}
+          payload={{ entry: "questions", from: "have_candidate" }}
           href="/q/1"
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[17px] font-extrabold text-white shadow-cta"
         >

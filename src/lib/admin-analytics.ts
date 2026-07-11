@@ -78,12 +78,20 @@ export async function loadAdminFunnel(): Promise<FunnelLoadState> {
   try {
     const db = supabaseAdmin();
     const results = await Promise.all(
-      FUNNEL_STAGES.map((stage) =>
-        db
+      FUNNEL_STAGES.map((stage) => {
+        const query = db
           .from("events")
-          .select("id", { count: "exact", head: true })
-          .eq("event_type", stage.eventType)
-      )
+          .select("id", { count: "exact", head: true });
+
+        // 같은 타입으로 기록되는 "이미 후보가 있어요" 검증 링크는 질문 시작이 아니다.
+        if (stage.eventType === "start_click") {
+          return query
+            .contains("payload", { entry: "questions" })
+            .eq("event_type", stage.eventType);
+        }
+
+        return query.eq("event_type", stage.eventType);
+      })
     );
 
     const counts: FunnelCounts = {};
