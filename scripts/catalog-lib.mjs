@@ -398,9 +398,14 @@ function validatePublicRow(record, product, evidence, asOf, issues, warnings) {
       issues.push(issue("error", record.__row, field, "공개 전 소비자 보호 조건 확인이 필요합니다."));
     }
   }
-  if (product.review_sample_count < 1 || product.review_sample_count > 10) {
+  if (product.review_sample_count < 0 || product.review_sample_count > 10) {
     issues.push(
-      issue("error", record.__row, "review_sample_count", "공개 상품은 리뷰 표본 1~10개가 필요합니다.")
+      issue(
+        "error",
+        record.__row,
+        "review_sample_count",
+        "공개 상품은 공식 리뷰 0건 확인 또는 리뷰 표본 1~10개가 필요합니다."
+      )
     );
   }
   if (!product.review_verified_at) {
@@ -419,6 +424,19 @@ function validatePublicRow(record, product, evidence, asOf, issues, warnings) {
         record.__row,
         "review_rechecked_count",
         `리뷰 표본의 20% 이상(${requiredRechecks}개)을 재검수해야 합니다.`
+      )
+    );
+  }
+  const impossibleRiskCount = Object.values(product.review_risk_counts).some(
+    (count) => count > product.review_sample_count
+  );
+  if (impossibleRiskCount) {
+    issues.push(
+      issue(
+        "error",
+        record.__row,
+        "review_risk_counts",
+        "리뷰 위험 언급 수는 확인한 리뷰 표본 수를 넘을 수 없습니다."
       )
     );
   }
@@ -1038,14 +1056,21 @@ export function validateReleaseProducts(
     }
     if (
       !Number.isInteger(product.review_sample_count) ||
-      product.review_sample_count < 1 ||
+      product.review_sample_count < 0 ||
       product.review_sample_count > 10
     ) {
-      errors.push(`${label}: 리뷰 표본은 1~10개여야 합니다.`);
+      errors.push(`${label}: 공식 리뷰 0건 확인 또는 리뷰 표본 1~10개가 필요합니다.`);
     }
     const requiredRechecks = Math.ceil((product.review_sample_count ?? 0) * 0.2);
     if ((product.review_rechecked_count ?? 0) < requiredRechecks) {
       errors.push(`${label}: 리뷰 표본 20% 이상을 재검수해야 합니다.`);
+    }
+    if (
+      Object.values(product.review_risk_counts ?? {}).some(
+        (count) => count > (product.review_sample_count ?? 0)
+      )
+    ) {
+      errors.push(`${label}: 리뷰 위험 언급 수가 확인한 리뷰 표본 수보다 많습니다.`);
     }
     const reviewAge = ageInDays(product.review_verified_at, asOf);
     if (reviewAge === null || reviewAge < 0 || reviewAge > 30) {

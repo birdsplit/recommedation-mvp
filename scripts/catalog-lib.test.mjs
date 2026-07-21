@@ -188,6 +188,45 @@ test("public rows require SS scope, policy evidence, and reviewed risk counts", 
   assert.ok(invalid.errors.some(({ field }) => field === "review_rechecked_count"));
 });
 
+test("public rows allow an officially confirmed zero-review product", () => {
+  const columns = [...CATALOG_COLUMNS, ...OPTIONAL_CATALOG_COLUMNS];
+  const valid = validateCatalogRecords(
+    parseCatalogCsv(
+      makeCsv(
+        [
+          validPublic({
+            review_sample_count: "0",
+            review_risk_counts: "{}",
+            review_risks: "",
+            review_rechecked_count: "0",
+          }),
+        ],
+        columns
+      )
+    ),
+    { asOf: "2026-07-12" }
+  );
+  assert.deepEqual(valid.errors, []);
+
+  const impossibleRisk = validateCatalogRecords(
+    parseCatalogCsv(
+      makeCsv(
+        [
+          validPublic({
+            review_sample_count: "0",
+            review_risk_counts: '{"smell":1}',
+            review_risks: "",
+            review_rechecked_count: "0",
+          }),
+        ],
+        columns
+      )
+    ),
+    { asOf: "2026-07-12" }
+  );
+  assert.ok(impossibleRisk.errors.some(({ field }) => field === "review_risk_counts"));
+});
+
 test("catalog hash is stable across object key and product order", () => {
   const first = { internal_key: "a", name: "A", price: 1 };
   const second = { price: 2, name: "B", internal_key: "b" };

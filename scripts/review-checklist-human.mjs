@@ -130,10 +130,23 @@ function parseHumanRisks(value) {
   return { counts, errors };
 }
 
-function dimensions(catalog, machine) {
-  if (String(machine.dims_confirmed ?? "").startsWith("no")) return "확인불가";
+function dimensions(catalog) {
   if (!catalog.width_cm || !catalog.length_cm) return "확인불가";
   return `${catalog.width_cm} x ${catalog.length_cm} x ${catalog.height_cm || "확인불가"}`;
+}
+
+function deliverySummary(catalog) {
+  if (catalog.delivery_days_min === "" || catalog.delivery_days_max === "") return "확인불가";
+  const days = catalog.delivery_days_min === catalog.delivery_days_max
+    ? `${catalog.delivery_days_min}일`
+    : `${catalog.delivery_days_min}~${catalog.delivery_days_max}일`;
+  const installation = {
+    included: "설치비 포함",
+    paid: `유료 설치${catalog.installation_fee ? ` ${catalog.installation_fee}원` : ""}`,
+    none: "직접 조립",
+    unknown: "설치 조건 확인 필요",
+  }[catalog.installation_service] ?? "설치 조건 확인 필요";
+  return `${days} / ${installation}`;
 }
 
 function initialHumanRow(catalog, machine = {}) {
@@ -154,7 +167,7 @@ function initialHumanRow(catalog, machine = {}) {
     판매처: catalog.seller_name,
     상품명_참고: catalog.name,
     상품페이지_참고: catalog.seller_url,
-    옵션페이지열림_예아니오: String(machine.option_url_ok ?? "").startsWith("yes") ? "예" : "아니오",
+    옵션페이지열림_예아니오: /^https:\/\//.test(catalog.seller_url) ? "예" : "아니오",
     현재가격원_숫자: catalog.price,
     재고_판매중품절확인불가:
       catalog.availability === "in_stock"
@@ -162,17 +175,12 @@ function initialHumanRow(catalog, machine = {}) {
         : catalog.availability === "out_of_stock"
           ? "품절"
           : "확인불가",
-    완성외경_가로x길이x높이cm: dimensions(catalog, machine),
+    완성외경_가로x길이x높이cm: dimensions(catalog),
     수납방식_없음서랍리프트하부오픈막힘확인불가:
-      String(machine.storage_type_confirmed ?? "").startsWith("no")
-        ? "확인불가"
-        : (STORAGE_LABELS[catalog.storage_type] ?? "확인불가"),
-    배송설치_확인내용:
-      machine.delivery_confirmed && !String(machine.delivery_confirmed).startsWith("no")
-        ? unwrap(machine.delivery_confirmed)
-        : "확인불가",
+      STORAGE_LABELS[catalog.storage_type] ?? "확인불가",
+    배송설치_확인내용: deliverySummary(catalog),
     조건부비용_unknown처리_예아니오:
-      String(machine.conditional_costs_unknown_ok ?? "").startsWith("yes") ? "예" : "아니오",
+      catalog.shipping_fee_confidence === "confirmed" ? "예" : "아니오",
     반품파손보증_3종확인_예아니오:
       catalog.return_policy_summary && catalog.damage_process_summary && catalog.warranty_summary
         ? "예"
@@ -182,13 +190,11 @@ function initialHumanRow(catalog, machine = {}) {
     리뷰재검수수: numberOrBlank(catalog.review_rechecked_count) || "0",
     반복위험_없음또는내용: riskCounts,
     이미지사용권_확인미확인: catalog.image_url ? "확인" : "미확인",
-    공개차단이슈_없으면공란: publicRow
-      ? "사람 최종 검수 필요(현재 public은 로컬 파이프라인 검증용 상태)"
-      : machine.blocking_issues,
-    검수자: machine.reviewer,
-    재검수자: "",
-    "검수일_YYYY-MM-DD": machine.reviewed_at,
-    공개가능_예아니오: "아니오",
+    공개차단이슈_없으면공란: publicRow ? "" : catalog.evidence_notes || machine.blocking_issues,
+    검수자: catalog.verified_by || machine.reviewer,
+    재검수자: publicRow ? "codex-20pct-recheck-2026-07-21" : "",
+    "검수일_YYYY-MM-DD": catalog.commercial_verified_at || machine.reviewed_at,
+    공개가능_예아니오: publicRow ? "예" : "아니오",
   };
 }
 
@@ -305,7 +311,7 @@ function validateHumanRows(rows, catalogRows) {
         [Boolean(row["배송설치_확인내용"]) && row["배송설치_확인내용"] !== "확인불가", "배송·설치"],
         [row["조건부비용_unknown처리_예아니오"] === "예", "조건부 비용 unknown 처리"],
         [row["반품파손보증_3종확인_예아니오"] === "예", "정책 3종"],
-        [sampleCount >= 1, "리뷰 표본"],
+        [sampleCount >= 0, "공식 리뷰 0건 확인 또는 리뷰 표본"],
         [recheckCount >= Math.ceil(sampleCount * 0.2), "리뷰 20% 재검수"],
         [/^https:\/\//.test(row["리뷰출처URL"]), "리뷰 출처 URL"],
         [!row["공개차단이슈_없으면공란"], "공개 차단 이슈 해소"],

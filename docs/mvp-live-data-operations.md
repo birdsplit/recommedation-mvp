@@ -1,84 +1,84 @@
 # 모두의침대 MVP 실데이터 운영 가이드
 
-목표 기능 동결일은 지원사업 제출일(7월 28일) 하루 전인 **2026년 7월 27일**이다. 그전까지 공개본은 `DATA_MODE=demo`로 유지하고, 검수가 끝난 하나의 카탈로그 릴리스가 생긴 뒤에만 `live`로 전환한다.
+## 현재 상태 (2026-07-21)
 
-## 현재 준비된 데이터
+- 카탈로그: 슈퍼싱글 31개, 공식 판매처 8곳
+- 공개 가능: 28개, 판매처 8곳, 수납 방식 4종
+- 공개 제외: 현재 구매 불가/해당 SS 옵션 품절 3개(그중 일룸 1개는 리뷰 집계와 공개 본문도 불일치)
+- 이미지: 판매처 이미지의 재사용권을 확인하지 못해 전부 공란
+- 근거: 가격·재고·배송·규격·정책·리뷰마다 공식 판매처 URL과 확인일을 저장
+- 검수표: `data/review-checklist.ko.csv` 31행, 자동 변환본 `data/review-checklist.csv` 31행
 
-- `data/catalog-products.draft.csv`: 공식 판매처 6곳의 실제 상품 URL 30개 초안
-- `outputs/recommendation_mvp/모두의침대_실상품_조사_템플릿.xlsx`: 같은 30개 초안을 포함한 조사·검수 워크북
-- 모든 초안 행은 `hidden`, 재고는 `unknown`, 이미지는 빈칸이다.
-- 가격·배송비·재고·옵션·치수의 미확인 값을 확정값으로 바꾸지 않는다.
+공개 28개는 `data/catalog-products.csv`에서 `status=public`입니다. 제외 3개는 사실을 추정해 채우지 않았으며 모두 현재 구매 불가가 확인되어 `sold_out`으로 유지합니다.
 
-## 카탈로그 작업 순서
+## 사람이 보는 파일
 
-```powershell
-npm run catalog:validate -- --file data/catalog-products.draft.csv --as-of 2026-07-12
-npm run catalog:import -- --file data/catalog-products.draft.csv --dry-run
-npm run catalog:import -- --file data/catalog-products.draft.csv
-npm run catalog:release -- --version 2026-07-27.1 --approve-warnings "검수자: 승인 사유"
-```
-
-`catalog:import`는 `seller_name + offer_id + variant_key`에서 만든 고유키로 upsert한다. `catalog:release`는 공개 가능한 상품 스냅샷을 묶어 불변 릴리스로 만들며, live 추천은 최신 published 릴리스만 읽는다.
-
-공개 행에는 가격·재고, 배송·설치, 규격·구조, 반품·보증, 리뷰 표본의 그룹별 URL과 `confirmed` 근거가 모두 필요하다. 반품·파손·보증 요약, 리뷰 표본 1~10개, 위험별 언급 수, 20% 이상 재검수도 강제한다. 경고가 남으면 검수자와 승인 사유를 릴리스에 기록하지 않는 한 공개할 수 없다.
-
-## 공개 전 사람 검수
-
-1. 정확한 옵션·실판매 URL·현재가·재고·외경·수납방식·배송기간을 다시 확인한다.
-2. 조건부 배송비·설치비는 0원 대신 `unknown`과 확인 문장을 저장한다.
-3. 상업 정보는 7일, 고정 사양은 30일을 넘기지 않는다.
-4. 리뷰는 상품별 최대 10개만 표본화하고 같은 위험이 2건 이상일 때만 반복 위험으로 등록한다.
-5. 전체 리뷰 표본의 20%를 다른 사람이 재검수한다.
-6. 이미지 사용권을 확인하지 못하면 `image_url`을 비워 구조 일러스트를 사용한다.
-7. 검증 오류 0개, 경고에는 승인 기록이 있어야 한다.
-8. 현재 MVP 공개 범위는 `bed_size=SS`뿐이다. 90×200 싱글 초안은 별도 검증 범위이므로 공개할 수 없다.
-
-현재 30개 초안은 URL과 1차 관측값을 확보한 상태일 뿐 공개 기준을 아직 만족하지 않는다. 특히 재고·지역별 배송비·배송 가능일과 13개 상품의 치수 보완이 필요하다.
-
-## 실행 모드
-
-```dotenv
-DATA_MODE=demo
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-STUDY_TOKEN_SECRET=
-```
-
-- `demo`: 화면마다 예시 데이터 표시, 판매처·출처 이동 차단, fixture만 사용
-- `live`: Supabase와 published 릴리스가 없으면 더미로 폴백하지 않고 오류 처리. 공개 후에도 가격·재고·배송 7일, 사양 30일을 넘긴 상품과 품절·재확인 상품은 새 추천에서 제외
-- 이벤트·피드백 API는 DB 미설정을 성공으로 응답하지 않는다.
-
-## 추천 재현성과 내부 QA
-
-실데이터 추천은 `POST /api/recommendations`에서 run을 생성한다. 답변, 알고리즘 버전, 카탈로그 릴리스, 후보 전체 스냅샷을 저장하고 `/results/[runId]`가 그 스냅샷을 보여준다.
-
-내부 QA 토큰은 서버 비밀키로 발급한다.
+`data/review-checklist.ko.csv`를 엑셀이나 구글 스프레드시트로 엽니다. 한국어 열만 확인하면 되며, 상세 작성법은 `docs/사람용-상품-검수표-작성법.md`에 있습니다.
 
 ```powershell
-$env:STUDY_TOKEN_SECRET="충분히-긴-서버-전용-비밀키"
-npm run study:token -- internal-qa 7
+npm run review:check
+npm run review:sync
 ```
 
-출력 토큰을 `/study/<token>`으로 열면 HttpOnly 테스트 쿠키가 발급된다. 클라이언트가 `is_test`를 직접 지정할 수 없으며, 관리자 지표는 테스트 여정을 제외한다.
+`review:check`는 공개 표시와 필수 확인값, 리뷰 표본 및 20% 재검수를 검사합니다. `review:sync`는 한국어 표를 자동화용 `data/review-checklist.csv`로 변환합니다. 카탈로그 자체를 수정하지는 않습니다.
 
-## 검증 명령
+## 데이터 검증과 임포트
+
+아래 명령은 프로젝트 루트에서 순서대로 실행합니다.
 
 ```powershell
-npm run check
 npm run catalog:test
-npm run catalog:validate -- --file data/catalog-products.draft.csv --as-of 2026-07-12
-npm run build
+npm run catalog:validate -- --as-of 2026-07-21
+npm run catalog:import -- --as-of 2026-07-21 --dry-run
+npm run catalog:import -- --as-of 2026-07-21
 ```
 
-운영 전에는 390px, 768px, 1440px에서 질문 → 요약 → 결과 비교 → 상세 → 추가비용 확인 → 판매처 → 피드백 흐름을 확인한다. 데모에서는 판매처 이동이 403으로 차단되어야 한다.
+`catalog:import`는 `seller_name + offer_id + variant_key`로 upsert합니다. 다시 실행해도 같은 옵션을 중복 생성하지 않습니다.
 
-## 사용자 테스트 기록 기준
+## 릴리스
 
-- 사용성 테스트 5명: 3개 후보 차이를 30초 안에 설명 가능한지
-- 비교실험 최소 20명
-- 질문 완주율 70% 이상
-- 후보 선정시간 중앙값 30% 이상 단축
-- 조건 반영 만족도 4.0/5 이상
-- 고려 상품 발견 60% 이상, 판매처 클릭 40% 이상
+운영 기본 게이트는 공개 상품 30개 이상입니다. 이번 공식 재검수에서 확인된 공개 가능 상품은 28개이므로 기본 명령은 경고와 함께 멈춥니다. 품절 2개와 리뷰 본문 미확보 1개를 억지로 공개하지 않고 28개를 의도적으로 릴리스할 때만 다음과 같이 예외 사유를 기록합니다.
 
-관리자 대시보드는 고유 `journey_id`로 결과 도달 전 퍼널을 계산하고, 상세·비교·추가비용·판매처·출처·피드백을 결과 이후 독립 분기율로 표시한다.
+```powershell
+npm run catalog:release -- --version 2026-07-21.2 --as-of 2026-07-21 --dry-run --allow-partial --approve-warnings "Codex: 공식 검수 완료 28개 공개; 현재 구매 불가/SS 품절 3개 제외"
+npm run catalog:release -- --version 2026-07-21.2 --as-of 2026-07-21 --allow-partial --approve-warnings "Codex: 공식 검수 완료 28개 공개; 현재 구매 불가/SS 품절 3개 제외"
+```
+
+`allow-partial`은 공개 기준을 낮추는 기능이 아니라, 30개 목표 미달 사유를 릴리스 기록에 남기는 예외입니다. 각 상품의 필수 사실 검증은 그대로 적용됩니다.
+
+## Supabase 마이그레이션
+
+새 코드가 참조하는 테이블·열을 원격 DB에 먼저 만듭니다.
+
+```powershell
+npx supabase link --project-ref <운영-project-ref>
+npx supabase migration list
+npx supabase db push
+npx supabase migration list
+```
+
+첫 번째 `migration list`에서 로컬에만 있는 마이그레이션을 확인한 뒤 `db push`를 실행합니다. 두 번째 목록에서 로컬과 원격 버전이 모두 일치해야 합니다. 운영 프로젝트 ref와 DB 암호는 저장소에 기록하지 않습니다.
+
+마이그레이션 → 카탈로그 임포트 → 릴리스 순서가 안전합니다. Git push 자체는 CSV 검수 전에 할 수도 있지만, live 배포가 새 코드를 읽기 시작하기 전에는 세 단계가 모두 끝나 있어야 합니다.
+
+## 프로덕션 배포 전 체크
+
+1. 원격 Supabase 마이그레이션 일치
+2. 카탈로그 검증 오류 0개
+3. 운영 DB 임포트 성공
+4. 검수 사유가 기록된 published 릴리스 존재
+5. 배포 환경의 `DATA_MODE=live`, Supabase URL·서비스 키, study secret 설정
+6. `npm run check:full` 성공
+7. 배포 뒤 `npm run verify:production -- <운영 URL>` 성공
+
+live 모드는 published 릴리스가 없거나 DB 설정이 없으면 데모로 조용히 대체하지 않고 오류를 냅니다. 따라서 CSV와 마이그레이션은 “Git push의 문법적 선행조건”은 아니지만 “정상 live 배포의 선행조건”입니다.
+
+## 운영 갱신 주기
+
+- 가격·재고·배송: 7일 이내 재확인
+- 규격·리뷰: 30일 이내 재확인
+- 공식 리뷰가 0건이면 공식 화면/API가 0을 명확히 반환한 근거를 유지
+- 같은 위험이 표본 2건 이상에 나타날 때만 추천 화면에 반복 위험으로 노출
+- 판매처 이미지 사용권을 확인하지 못하면 `image_url`을 계속 비움
+
+`scripts/catalog-refresh-2026-07-21.mjs`는 이번 전수 검수 반영 내역을 재현하는 감사용 스크립트입니다. 향후 가격 갱신은 새 확인일로 별도 스크립트나 직접 검수 패치를 만들고, 과거 확인일을 오늘 날짜로 단순 변경하지 않습니다.
