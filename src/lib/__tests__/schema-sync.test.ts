@@ -26,6 +26,15 @@ describe("Supabase schema source", () => {
     const catalogEvidenceReview = normalized(
       "supabase/migrations/20260712030000_catalog_evidence_review.sql"
     );
+    const reactionLoopEvents = normalized(
+      "supabase/migrations/20260720010000_reaction_loop_events.sql"
+    );
+    const recommendationRunMode = normalized(
+      "supabase/migrations/20260720020000_recommendation_run_mode.sql"
+    );
+    const feedbackDecisionConfidence = normalized(
+      "supabase/migrations/20260720030000_feedback_decision_confidence.sql"
+    );
     const initialTail =
       "  check (installation_service not in ('paid','included') or assembly_service_available)\n);";
     const currentTail = `  check (installation_service not in ('paid','included') or assembly_service_available),
@@ -39,8 +48,26 @@ describe("Supabase schema source", () => {
     expect(initial).not.toContain("products_public_source_note_check");
     expect(initial).toContain(initialTail);
     expect(current).toBe(
-      `${initial.replace(initialTail, currentTail)}\n\n${catalogRuntime}\n\n${recommendationRuns}\n\n${catalogEvidenceReview}`
+      `${initial.replace(initialTail, currentTail)}\n\n${catalogRuntime}\n\n${recommendationRuns}\n\n${catalogEvidenceReview}\n\n${reactionLoopEvents}\n\n${recommendationRunMode}\n\n${feedbackDecisionConfidence}`
     );
+  });
+
+  it("반응 루프 migration이 이벤트·실행 모드·피드백 확장을 현재 스키마에 설치한다", () => {
+    const current = normalized("supabase/schema.sql");
+    // 반응 루프 이벤트 6종
+    expect(current).toContain("browse_view");
+    expect(current).toContain("candidate_reaction");
+    expect(current).toContain("shortlist_finalize");
+    // 코호트 퍼널·피드백 집계 함수
+    expect(current).toContain("admin_cohort_event_counts");
+    expect(current).toContain("admin_cohort_feedback");
+    // start_click 귀속을 questions/browse로 넓혔는지
+    expect(current).toContain("events.payload ->> 'entry' in ('questions','browse')");
+    // 추천 실행 모드 컬럼과 제약
+    expect(current).toContain("mode in ('oneshot','loop')");
+    expect(current).toContain("recommendation_runs_mode_idx");
+    // 결정 확신도 피드백 항목
+    expect(current).toContain("q_decision_confidence");
   });
 
   it("후속 migration이 현재 스키마의 공개 출처 제약을 설치한다", () => {

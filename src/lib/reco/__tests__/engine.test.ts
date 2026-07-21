@@ -24,10 +24,20 @@ import {
   checkStorage,
   runChecks,
 } from "../filter";
-import { preferencePoints, riskPenalty } from "../score";
+import { preferencePoints, riskPenalty, scoreProduct } from "../score";
 import { evaluateProduct, recommend } from "../engine";
 import { buildRelaxSuggestions } from "../relax";
 import { makeProduct, SEED_PRODUCTS } from "./fixtures";
+// 반응 루프(arm B) 확장 — 아래 describe들에서만 사용 (기존 테스트는 그대로).
+import {
+  diffRankings,
+  evaluatePool,
+  evaluateProductWithCriteria,
+  explainRerank,
+  finalizeShortlist,
+} from "../engine";
+import { EMPTY_CRITERIA, REACTION_RULES } from "../criteria";
+import type { SessionCriteria } from "../criteria";
 
 const answers = (overrides: Partial<Answers> = {}): Answers => ({
   ...DEFAULT_ANSWERS,
@@ -944,5 +954,171 @@ describe("리뷰 발견 회귀 — 완화 고지·설치비·문구", () => {
               }
             }
           }
+  });
+});
+
+describe("criteria-aware evaluation — 반응 루프(arm B)", () => {
+  const loopAnswers = answers({ assembly: "self" });
+
+  it("(a) 기준 인자 없이/EMPTY로 부르면 arm A와 동일 결과다", () => {
+    const p = makeProduct({ review_risks: ["squeak"], disassembly_ease: "easy" });
+    const cost = computeCost(p, loopAnswers);
+    // 기준 없음 = undefined 명시 = EMPTY 모두 같은 점수
+    expect(scoreProduct(p, loopAnswers, cost)).toEqual(
+      scoreProduct(p, loopAnswers, cost, undefined)
+    );
+    expect(scoreProduct(p, loopAnswers, cost)).toEqual(
+      scoreProduct(p, loopAnswers, cost, EMPTY_CRITERIA)
+    );
+    // 변경 전 기대값 고정: disassembly +1, squeak(직접 조립) -1 → 0, 위험 1건
+    const base = scoreProduct(p, loopAnswers, cost);
+    expect(base.score).toBe(0);
+    expect(base.riskCount).toBe(1);
+    // 루프 평가(EMPTY)는 arm A evaluateProduct와 tier·상태·점수가 일치하고 criteriaChecks는 비어 있다
+    const armA = evaluateProduct(p, loopAnswers);
+    const loop = evaluateProductWithCriteria(p, loopAnswers, EMPTY_CRITERIA);
+    expect(loop.score).toBe(armA.score);
+    expect(loop.tier).toBe(armA.tier);
+    expect(loop.conditionStatus).toBe(armA.conditionStatus);
+    expect(loop.riskCount).toBe(armA.riskCount);
+    expect(loop.criteriaChecks).toEqual([]);
+  });
+
+  it("(b) 필수 기준 not_met은 비추천, unknown은 조건부 티어로 만든다", () => {
+    // 매트리스 미포함 상품을 mattress_included 필수로 요구 → not_met → not_fit
+    const noMattress = makeProduct({ mattress_included: false });
+    const mustMattress: SessionCriteria = {
+      must: ["mattress_included"],
+      prefer: [],
+      tolerated: [],
+    };
+    const notFit = evaluateProductWithCriteria(noMattress, loopAnswers, mustMattress);
+    expect(notFit.criteriaChecks[0]).toMatchObject({
+      key: "mattress_included",
+      status: "not_met",
+    });
+    expect(notFit.conditionStatus).toBe("not_met");
+    expect(notFit.tier).toBe("not_fit");
+    expect(notFit.finalJudgment).toContain("매트리스 포함");
+
+    // 리뷰 표본이 없는 상품을 low_review_risk 필수로 요구 → unknown → conditional
+    const noReviews = makeProduct({ review_sample_count: undefined });
+    const mustLowRisk: SessionCriteria = {
+      must: ["low_review_risk"],
+      prefer: [],
+      tolerated: [],
+    };
+    const conditional = evaluateProductWithCriteria(noReviews, loopAnswers, mustLowRisk);
+    expect(conditional.criteriaChecks[0].status).toBe("unknown");
+    expect(conditional.conditionStatus).toBe("unknown");
+    expect(conditional.tier).toBe("conditional");
+  });
+
+  it("(c) tolerated 리스크는 감점을 없애고 riskCount를 줄인다", () => {
+    const squeaky = makeProduct({ review_risks: ["squeak"] });
+    const serviceAnswers = answers({ carry: "service", assembly: "service" });
+    const cost = computeCost(squeaky, serviceAnswers);
+    // 조립 서비스 사용자에게 squeak 감점은 2
+    const before = scoreProduct(squeaky, serviceAnswers, cost);
+    expect(before.riskCount).toBe(1);
+    const tolerated: SessionCriteria = {
+      must: [],
+      prefer: [],
+      tolerated: ["squeak"],
+    };
+    const after = scoreProduct(squeaky, serviceAnswers, cost, tolerated);
+    expect(after.riskCount).toBe(0);
+    expect(after.score).toBe(before.score + 2);
+  });
+
+  it("(d) 선호 기준은 가점을 더해 정렬을 결정적으로 뒤집을 수 있다", () => {
+    const meet = makeProduct({
+      name: "하나",
+      storage_type: "lift_up",
+      storage_capacity: "large",
+    });
+    const miss = makeProduct({
+      name: "가나",
+      storage_type: "none",
+      storage_capacity: "none",
+    });
+    const a = answers();
+    // 기준 없으면 점수 동률 → 이름순으로 "가나"가 먼저
+    const withoutPref = evaluatePool([meet, miss], a, EMPTY_CRITERIA).map(
+      (r) => r.product.name
+    );
+    expect(withoutPref).toEqual(["가나", "하나"]);
+    // storage_big 선호 가점을 주면 충족하는 "하나"가 앞선다
+    const preferStorage: SessionCriteria = {
+      must: [],
+      prefer: [{ key: "storage_big", weight: 2, origin: "like_storage" }],
+      tolerated: [],
+    };
+    expect(
+      evaluatePool([meet, miss], a, preferStorage).map((r) => r.product.name)
+    ).toEqual(["하나", "가나"]);
+    // 입력 순서와 무관하게 결정적
+    expect(
+      evaluatePool([miss, meet], a, preferStorage).map((r) => r.product.name)
+    ).toEqual(["하나", "가나"]);
+  });
+
+  it("(e) finalizeShortlist는 제외 id를 빼고 unknown으로 채운다", () => {
+    const a = answers();
+    const p1 = makeProduct({ name: "확정1" });
+    const p2 = makeProduct({ name: "확정2" });
+    const p3 = makeProduct({ name: "확정3" });
+    const needsCheck = makeProduct({ name: "확인필요", data_confidence: "estimated" });
+    const pool = evaluatePool([p1, p2, p3, needsCheck], a, EMPTY_CRITERIA);
+
+    const shortlist = finalizeShortlist(pool, [p1.id]);
+    expect(shortlist.totalReviewed).toBe(4);
+    expect(shortlist.candidates).toHaveLength(3);
+    expect(shortlist.candidates.map((c) => c.product.id)).not.toContain(p1.id);
+    // 확정 후보가 2개뿐이라 unknown 후보가 백필된다
+    expect(shortlist.candidates.some((c) => c.product.name === "확인필요")).toBe(true);
+    // Set 입력도 동일하게 동작
+    const viaSet = finalizeShortlist(pool, new Set([p1.id]));
+    expect(viaSet.candidates.map((c) => c.product.id)).toEqual(
+      shortlist.candidates.map((c) => c.product.id)
+    );
+  });
+
+  it("(f) diffRankings/explainRerank는 결정적 결과를 낸다", () => {
+    const a = answers();
+    const recOf = (name: string) =>
+      evaluateProductWithCriteria(makeProduct({ name }), a, EMPTY_CRITERIA);
+    const x = recOf("엑스");
+    const y = recOf("와이");
+    const z = recOf("제트");
+    const prev = [x, y, z];
+    const next = [y, x]; // z 이탈, y 상승(2→1), x 하락(1→2)
+    const changes = diffRankings(prev, next);
+
+    const yChange = changes.find((c) => c.id === y.product.id)!;
+    expect(yChange).toMatchObject({ prevRank: 2, nextRank: 1, delta: 1 });
+    const xChange = changes.find((c) => c.id === x.product.id)!;
+    expect(xChange).toMatchObject({ prevRank: 1, nextRank: 2, delta: -1 });
+    const zChange = changes.find((c) => c.id === z.product.id)!;
+    expect(zChange).toMatchObject({ prevRank: 3, nextRank: null, delta: 0 });
+
+    const applied = {
+      suggestion: REACTION_RULES.find((r) => r.chip === "cleaning_worry")!,
+      bucket: "must" as const,
+    };
+    const sentences = explainRerank(changes, applied);
+    expect(sentences.length).toBeGreaterThanOrEqual(1);
+    expect(sentences.length).toBeLessThanOrEqual(3);
+    expect(sentences[0]).toContain("청소가 걱정돼요");
+    expect(sentences[0]).toContain("하부 청소 편의");
+    expect(sentences[0]).toContain("필수 조건");
+    expect(sentences.some((s) => s.includes("와이") && s.includes("1계단"))).toBe(
+      true
+    );
+    expect(sentences.some((s) => s.includes("제트") && s.includes("제외"))).toBe(
+      true
+    );
+    // 결정성: 같은 입력 → 같은 문장
+    expect(explainRerank(changes, applied)).toEqual(sentences);
   });
 });

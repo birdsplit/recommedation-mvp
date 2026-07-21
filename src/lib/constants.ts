@@ -32,6 +32,16 @@ export const EVENT_TYPES = [
   "source_open",
   "feedback_submit",
   "post_purchase_submit",
+  // 반응 기반 추천 루프(arm B) 이벤트 6종 — 기존 항목 뒤에만 덧붙인다.
+  // browse_view: 후보 카드 노출, candidate_reaction: 카드별 저장/제외/보류 반응,
+  // criteria_prompt: 누적 칩으로 확인 카드 노출, criteria_confirm: 필수/선호/아니요 응답,
+  // candidates_rerank: 기준 반영 후 재정렬, shortlist_finalize: 2~3개 최종 후보 확정.
+  "browse_view",
+  "candidate_reaction",
+  "criteria_prompt",
+  "criteria_confirm",
+  "candidates_rerank",
+  "shortlist_finalize",
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -80,3 +90,40 @@ export const STALE_VERIFIED_DAYS = 14;
 
 /** 비교함 최대 개수 (기획서 §7.1) */
 export const COMPARE_MAX = 3;
+
+/**
+ * 반응 기반 추천(arm B)에서 후보 카드에 붙이는 이유 칩.
+ * 부정 칩은 제외·보류의 근거, 긍정 칩은 저장의 근거로 누적되어
+ * 임계치를 넘으면 확인 카드(criteria_prompt)를 띄우는 신호가 된다.
+ * slug만 이벤트·URL에 싣고 라벨은 화면에서만 쓴다. (기획 개정 §4 반응 루프)
+ */
+export const REASON_CHIPS = {
+  // 부정 — 제외/보류에서 누적
+  price_burden: "가격이 부담돼요",
+  storage_lack: "수납이 부족해요",
+  cleaning_worry: "청소가 걱정돼요",
+  assembly_worry: "조립이 걱정돼요",
+  design_dislike: "디자인이 별로예요",
+  delivery_late: "배송이 늦어요",
+  review_anxiety: "리뷰가 불안해요",
+  // 긍정 — 저장에서 누적
+  like_price: "가격이 좋아요",
+  like_storage: "수납이 좋아요",
+  like_clean: "청소가 편해 보여요",
+  like_design: "디자인이 좋아요",
+} as const;
+
+export type ReasonChip = keyof typeof REASON_CHIPS;
+
+/**
+ * A/B 실험 배정 모드 (기획 개정 §12).
+ * oneshot = 기존 일회성 추천(arm A, 동작 동결), loop = 반응 기반 추천(arm B).
+ */
+export const EXPERIMENT_MODES = ["oneshot", "loop"] as const;
+
+export type ExperimentMode = (typeof EXPERIMENT_MODES)[number];
+
+export const MODE_LABELS: Record<ExperimentMode, string> = {
+  oneshot: "일회성 추천",
+  loop: "반응 기반 추천",
+};

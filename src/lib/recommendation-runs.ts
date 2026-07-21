@@ -1,13 +1,17 @@
 import "server-only";
 
 import { connection } from "next/server";
+import type { ExperimentMode } from "@/lib/constants";
 import { isLiveDataMode } from "@/lib/data-mode";
 import type { PublishedCatalogRelease } from "@/lib/products";
+import { isSessionCriteria, type SessionCriteria } from "@/lib/reco/criteria";
 import type { Answers, RecommendResult } from "@/lib/reco/types";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
 
 export const RECOMMENDATION_ALGORITHM_VERSION = "tri-state-2026-07-v1";
+/** 반응 기반 추천(arm B) 알고리즘 버전 */
+export const LOOP_ALGORITHM_VERSION = "reaction-loop-2026-07-v1";
 
 export interface CatalogReleaseRef {
   id: string;
@@ -21,6 +25,10 @@ export interface StoredRecommendationRun {
   answers: Answers;
   result: RecommendResult;
   algorithmVersion: string;
+  /** 실험 팔 — oneshot(arm A) / loop(arm B) */
+  mode: ExperimentMode;
+  /** 반응 루프에서 확정된 기준 스냅샷. oneshot이면 null. */
+  criteria: SessionCriteria | null;
   catalog: CatalogReleaseRef;
   createdAt: string;
 }
@@ -38,6 +46,12 @@ export async function createRecommendationRun(input: {
   result: RecommendResult;
   catalog: PublishedCatalogRelease;
   studyCode?: string | null;
+  /** 실험 팔 (기본 oneshot) */
+  mode?: ExperimentMode;
+  /** 반응 루프 기준 스냅샷 (기본 null) */
+  criteria?: SessionCriteria | null;
+  /** 알고리즘 버전 (기본 RECOMMENDATION_ALGORITHM_VERSION) */
+  algorithmVersion?: string;
 }): Promise<StoredRecommendationRun> {
   if (!isLiveDataMode()) {
     throw new Error("데모 추천은 영속 추천 실행으로 저장하지 않습니다.");
@@ -50,14 +64,23 @@ export async function createRecommendationRun(input: {
     throw new Error("추천 실행을 저장할 카탈로그 연결이 올바르지 않습니다.");
   }
   const catalog: CatalogReleaseRef = input.catalog;
+  const mode: ExperimentMode = input.mode ?? "oneshot";
+  const criteria: SessionCriteria | null = input.criteria ?? null;
+  const algorithmVersion =
+    typeof input.algorithmVersion === "string" &&
+    input.algorithmVersion.trim() !== ""
+      ? input.algorithmVersion
+      : RECOMMENDATION_ALGORITHM_VERSION;
   const row = {
     session_id: input.sessionId,
     journey_id: input.journeyId,
     answers: input.answers,
-    algorithm_version: RECOMMENDATION_ALGORITHM_VERSION,
+    algorithm_version: algorithmVersion,
     catalog_release_id: catalog.id,
     result_snapshot: input.result,
     candidate_count: input.result.candidates.length,
+    mode,
+    criteria,
     study_code:
       typeof input.studyCode === "string" && input.studyCode.trim() !== ""
         ? input.studyCode.trim().slice(0, 80)
@@ -75,7 +98,9 @@ export async function createRecommendationRun(input: {
     journeyId: input.journeyId,
     answers: input.answers,
     result: input.result,
-    algorithmVersion: RECOMMENDATION_ALGORITHM_VERSION,
+    algorithmVersion,
+    mode,
+    criteria,
     catalog,
     createdAt: data.created_at as string,
   };
@@ -100,7 +125,7 @@ export async function getRecommendationRun(
   const { data, error } = await db
     .from("recommendation_runs")
     .select(
-      "id,journey_id,answers,algorithm_version,catalog_release_id,result_snapshot,created_at"
+      "id,journey_id,answers,algorithm_version,mode,criteria,catalog_release_id,result_snapshot,created_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -118,12 +143,18 @@ export async function getRecommendationRun(
   const release = releaseData as ReleaseRow | null;
   if (!release || !release.published_at) return null;
 
+  const mode: ExperimentMode =
+    data.mode === "loop" || data.mode === "oneshot" ? data.mode : "oneshot";
+  const criteria = isSessionCriteria(data.criteria) ? data.criteria : null;
+
   return {
     id: data.id as string,
     journeyId: data.journey_id as string,
     answers: data.answers as Answers,
     result: data.result_snapshot,
     algorithmVersion: data.algorithm_version as string,
+    mode,
+    criteria,
     catalog: {
       id: release.id,
       version: release.version,

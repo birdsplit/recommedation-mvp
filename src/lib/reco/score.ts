@@ -1,6 +1,8 @@
 import type { ReviewRisk } from "@/lib/constants";
 import type { Answers, CostBreakdown, Product } from "./types";
 import { DELIVERY_BUCKET_DAYS } from "./filter";
+import { criterionPreferHit } from "./criteria";
+import type { CriterionContext, SessionCriteria } from "./criteria";
 
 /**
  * 선호 가점(§9.2)과 리스크 감점(§9.3).
@@ -70,12 +72,17 @@ export function preferencePoints(
 /**
  * 리스크별 감점. 사용자의 능력(Q2)에 따라 같은 리스크라도 감점이 줄어든다.
  * 예: 삐걱임은 직접 나사 보강이 가능한 사용자에게는 절반 수준.
+ *
+ * tolerated는 반응 루프(arm B)에서 사용자가 "감당 가능한 단점"으로 표시한 리스크 목록이다.
+ * 인자를 생략하면(arm A) 예전과 완전히 동일하게 동작한다.
  */
 export function riskPenalty(
   risk: ReviewRisk,
   p: Product,
-  answers: Answers
+  answers: Answers,
+  tolerated?: readonly ReviewRisk[]
 ): number {
+  if (tolerated?.includes(risk)) return 0;
   const assemble = canAssemble(answers);
   const service = usesAssemblyService(answers);
 
@@ -108,10 +115,14 @@ export interface RiskHit {
   penalty: number;
 }
 
-export function riskPenalties(p: Product, answers: Answers): RiskHit[] {
+export function riskPenalties(
+  p: Product,
+  answers: Answers,
+  tolerated?: readonly ReviewRisk[]
+): RiskHit[] {
   return p.review_risks.map((risk) => ({
     risk,
-    penalty: riskPenalty(risk, p, answers),
+    penalty: riskPenalty(risk, p, answers, tolerated),
   }));
 }
 
@@ -123,13 +134,36 @@ export interface ScoreResult {
   riskCount: number;
 }
 
+/**
+ * 상품 점수 계산.
+ * criteria를 넘기면(arm B) 선호 기준 가점을 더하고 tolerated 리스크의 감점을 면제한다.
+ * criteria를 생략하면(arm A) 예전 결과와 완전히 동일하다.
+ * ctx는 low_total_cost 백분위 계산 등에 쓰는 맥락으로 criteria가 있을 때만 의미가 있다.
+ */
 export function scoreProduct(
   p: Product,
   answers: Answers,
-  cost: CostBreakdown
+  cost: CostBreakdown,
+  criteria?: SessionCriteria,
+  ctx?: CriterionContext
 ): ScoreResult {
-  const prefHits = preferencePoints(p, answers, cost);
-  const riskHits = riskPenalties(p, answers);
+  const basePrefHits = preferencePoints(p, answers, cost);
+  const riskHits = riskPenalties(p, answers, criteria?.tolerated);
+
+  // 선호 기준 가점 — criteria가 있을 때만. 같은 기준 키는 한 번만 가점한다(dedupe).
+  let prefHits = basePrefHits;
+  if (criteria) {
+    const criteriaHits: PrefHit[] = [];
+    const seen = new Set<string>();
+    for (const pref of criteria.prefer) {
+      if (seen.has(pref.key)) continue;
+      seen.add(pref.key);
+      const hit = criterionPreferHit(pref, p, answers, cost, ctx);
+      if (hit) criteriaHits.push(hit);
+    }
+    prefHits = [...basePrefHits, ...criteriaHits];
+  }
+
   const prefTotal = prefHits.reduce((sum, h) => sum + h.points, 0);
   const riskTotal = riskHits.reduce((sum, h) => sum + h.penalty, 0);
   return {
