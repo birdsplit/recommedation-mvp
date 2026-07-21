@@ -21,6 +21,9 @@
     "catalog:import": "node scripts/catalog-import.mjs",
     "catalog:release": "node scripts/catalog-release.mjs",
     "catalog:test": "node --test scripts/catalog-lib.test.mjs",
+    "review:prepare": "node scripts/review-checklist-human.mjs prepare",
+    "review:check": "node scripts/review-checklist-human.mjs check",
+    "review:sync": "node scripts/review-checklist-human.mjs sync",
     "study:token": "node scripts/create-study-token.mjs"
   },
   "dependencies": {
