@@ -1,9 +1,8 @@
 import type { Product } from "@/lib/reco/types";
 
 /**
- * supabase/seed.sql과 1:1로 대응하는 시드 상품 10개.
- * 용도: (1) Supabase 미설정 시 개발 폴백 (2) 추천 엔진 테스트 픽스처.
- * seed.sql을 수정하면 이 파일도 함께 수정할 것.
+ * 기능 검증용 가상 상품 10개. DATA_MODE=demo와 추천 엔진 테스트에서만 쓴다.
+ * 실데이터 모드는 이 배열로 폴백하지 않으며 DB에도 삽입하지 않는다.
  */
 
 const base = {
@@ -21,6 +20,7 @@ const base = {
   assembly_people: 1,
   disassembly_ease: "medium" as const,
   data_confidence: "confirmed" as const,
+  shipping_fee_confidence: "confirmed" as const,
   status: "public" as const,
   created_at: "2026-07-01T00:00:00Z",
   updated_at: "2026-07-01T00:00:00Z",

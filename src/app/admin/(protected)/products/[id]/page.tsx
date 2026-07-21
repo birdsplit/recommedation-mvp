@@ -52,10 +52,10 @@ export default async function EditAdminProductPage({
   return (
     <main className="px-5 pb-14 pt-7">
       <header className="mb-5">
-        <Link href="/admin/products" className="text-xs font-bold text-sub">
+        <Link href="/admin/products" className="text-[13px] font-bold text-sub">
           ← 상품 목록
         </Link>
-        <p className="mt-5 text-xs font-extrabold text-coral-600">EDIT PRODUCT</p>
+        <p className="mt-5 text-[13px] font-extrabold text-coral-600">EDIT PRODUCT</p>
         <h1 className="mt-1 text-2xl font-extrabold tracking-tight">상품 수정</h1>
         <p className="mt-2 truncate text-sm font-semibold text-sub">{product.name}</p>
       </header>

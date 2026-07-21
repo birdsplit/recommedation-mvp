@@ -33,6 +33,9 @@ export function buildFitReasons(
   cost: CostBreakdown
 ): Reason[] {
   const pool: Reason[] = [];
+  const deliveryKnown = !p.unknown_fields?.some(
+    (field) => field === "delivery_days_min" || field === "delivery_days_max"
+  );
 
   // 수납 조건 일치 (질문 1과 직결 — 가장 강한 이유)
   if (answers.storage === "big_items" && p.storage_type === "lift_up") {
@@ -79,7 +82,11 @@ export function buildFitReasons(
 
   // 예산 안 (질문 3)
   if (answers.budget !== null) {
-    if (answers.priceBasis === "total" && cost.knownTotal <= answers.budget) {
+    if (
+      answers.priceBasis === "total" &&
+      cost.knownTotal <= answers.budget &&
+      cost.unknownParts.length === 0
+    ) {
       const comfortable = cost.knownTotal <= answers.budget * 0.8;
       pool.push({
         weight: 9,
@@ -99,7 +106,11 @@ export function buildFitReasons(
   }
 
   // 매트리스 (질문 3 선택)
-  if (answers.wantsMattress === true && p.mattress_included) {
+  if (
+    answers.wantsMattress === true &&
+    p.mattress_included &&
+    !p.unknown_fields?.includes("mattress_included")
+  ) {
     pool.push({
       weight: 8,
       core: "매트리스 포함",
@@ -108,7 +119,7 @@ export function buildFitReasons(
   }
 
   // 배송 여유
-  if (answers.delivery !== "any") {
+  if (answers.delivery !== "any" && deliveryKnown) {
     const limit = DELIVERY_BUCKET_DAYS[answers.delivery];
     if (p.delivery_days_max + 7 <= limit) {
       pool.push({
@@ -117,7 +128,7 @@ export function buildFitReasons(
         text: `배송이 ${p.delivery_days_min}~${p.delivery_days_max}일로 원하는 기한보다 여유 있어요`,
       });
     }
-  } else if (p.delivery_days_max <= 7) {
+  } else if (answers.delivery === "any" && deliveryKnown && p.delivery_days_max <= 7) {
     pool.push({
       weight: 6,
       core: "빠른 배송",
@@ -127,8 +138,9 @@ export function buildFitReasons(
 
   // 운반·조립 조건 일치 (질문 2)
   if (
-    (answers.carry === "assembly_only" || answers.carry === "need_both") &&
-    p.carry_service_available
+    answers.carry === "service" &&
+    p.carry_service_available &&
+    !p.unknown_fields?.includes("carry_service_available")
   ) {
     pool.push({
       weight: 7,
@@ -136,7 +148,11 @@ export function buildFitReasons(
       text: "집 안까지 옮겨주는 운반 서비스가 있어요",
     });
   }
-  if (usesAssemblyService(answers) && p.assembly_service_available) {
+  if (
+    usesAssemblyService(answers) &&
+    p.assembly_service_available &&
+    !p.unknown_fields?.includes("assembly_service_available")
+  ) {
     pool.push({
       weight: 7,
       core: "조립 서비스",
@@ -157,20 +173,6 @@ export function buildFitReasons(
       weight: 5,
       core: "이사 편의",
       text: "분해·재조립이 쉬워 이사할 때 부담이 적어요",
-    });
-  }
-  if (p.has_outlet) {
-    pool.push({
-      weight: 5,
-      core: "헤드 콘센트",
-      text: "헤드에 콘센트가 있어 머리맡에서 충전할 수 있어요",
-    });
-  }
-  if (p.has_headboard) {
-    pool.push({
-      weight: 4,
-      core: "헤드보드",
-      text: "헤드보드가 있어 베개를 기대고 쓰기 편해요",
     });
   }
   if (answers.storage === "any" && p.robot_vacuum_fit === "ok") {
@@ -198,14 +200,25 @@ export function buildFitReasons(
   }
   pool.push({
     weight: 1,
-    core: "표준 규격",
-    text: "슈퍼싱글 표준 규격이라 원룸에 무난하게 들어가요",
+    core: "상품 규격",
+    text:
+      p.bed_size === "SS"
+        ? "슈퍼싱글(SS) 규격이라 같은 규격의 매트리스를 고르기 쉬워요"
+        : `${p.bed_size} 규격 프레임이에요 — 매트리스 규격을 함께 확인하세요`,
   });
-  pool.push({
-    weight: 1,
-    core: "배송 일정",
-    text: `주문하면 ${p.delivery_days_min}~${p.delivery_days_max}일 안에 받을 수 있어요`,
-  });
+  if (deliveryKnown) {
+    pool.push({
+      weight: 1,
+      core: "배송 일정",
+      text: `주문하면 ${p.delivery_days_min}~${p.delivery_days_max}일 안에 받을 수 있어요`,
+    });
+  } else {
+    pool.push({
+      weight: 1,
+      core: "상품 규격",
+      text: `${p.seller_name}에서 판매하는 ${p.bed_size} 규격 프레임이에요`,
+    });
+  }
 
   return pickTop(pool, 2);
 }
@@ -242,35 +255,11 @@ export function buildCautions(
     });
   }
 
-  if (answers.carry === "friend_help" && p.carry_difficulty === "hard") {
+  if (answers.carry === "friend" && p.carry_difficulty === "hard") {
     pool.push({
       weight: 8,
       core: "운반 인력",
       text: "혼자 옮기기 무거운 제품이에요 — 친구 일정을 미리 확인하세요",
-    });
-  }
-
-  // 서비스 없이 통과한 운반·조립 가정을 반드시 고지 (filter.ts checkCarry와 짝)
-  if (
-    answers.carry === "assembly_only" &&
-    !p.carry_service_available &&
-    p.carry_difficulty === "easy"
-  ) {
-    pool.push({
-      weight: 8,
-      core: "운반 방법",
-      text: "운반 서비스는 없어요 — 가볍고 나눠 포장돼 혼자 옮길 수 있다고 봤어요. 박스 무게를 확인하세요",
-    });
-  }
-  if (
-    answers.carry === "carry_only" &&
-    !p.assembly_service_available &&
-    p.self_assembly === "easy"
-  ) {
-    pool.push({
-      weight: 8,
-      core: "직접 조립",
-      text: "조립 서비스는 없지만 조립이 아주 쉬운 제품이라 직접 조립을 가정했어요",
     });
   }
 
@@ -396,7 +385,7 @@ export function buildFinalJudgment(
 ): string {
   if (tier === "not_fit") {
     const failed = checks
-      .filter((c) => !c.pass)
+      .filter((c) => c.required && c.status === "not_met")
       .map((c) => c.label)
       .join(", ");
     return `지금 조건(${failed})과 맞지 않는 상품이에요.`;
@@ -407,7 +396,12 @@ export function buildFinalJudgment(
   if (tier === "great") {
     // 최상급("가장")은 쓰지 않는다 — great 상품이 동시에 여럿 노출될 수 있다
     const fits = fit2 ? `${fit1}·${fit2}` : fit1;
-    return `${fits} 면에서 지금 조건과 잘 맞는 선택이에요. ${caution}만 확인하면 돼요.`;
+    return `${fits} 면에서 지금 조건과 잘 맞는 선택이에요. 구매 전 ${caution}도 확인해 주세요.`;
   }
-  return `${fit1} 면에서는 잘 맞지만, ${caution} 확인이 필요한 후보예요.`;
+  const hasUnknown = checks.some(
+    (item) => item.required && item.status === "unknown"
+  );
+  return hasUnknown
+    ? `${fit1} 면에서는 잘 맞지만, 일부 조건 정보와 ${caution} 확인이 필요한 후보예요.`
+    : `${fit1} 면에서는 잘 맞지만, ${caution} 확인이 필요한 후보예요.`;
 }

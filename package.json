@@ -9,11 +9,19 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
+    "check:full": "npm run check && npm run catalog:test && npm run test:e2e",
     "check": "npm run lint && npm run typecheck && npm test",
     "verify:m3": "node scripts/verify-m3.mjs",
     "verify:m4": "node scripts/verify-m4.mjs",
     "verify:m5": "node scripts/verify-m5.mjs",
-    "verify:production": "node scripts/verify-production.mjs"
+    "verify:production": "node scripts/verify-production.mjs",
+    "catalog:validate": "node scripts/catalog-validate.mjs",
+    "catalog:import": "node scripts/catalog-import.mjs",
+    "catalog:release": "node scripts/catalog-release.mjs",
+    "catalog:test": "node --test scripts/catalog-lib.test.mjs",
+    "study:token": "node scripts/create-study-token.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
@@ -24,10 +32,14 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@next/env": "^16.2.10",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "csv-parse": "^6.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",

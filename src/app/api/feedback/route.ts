@@ -1,11 +1,12 @@
 import { readJsonObject } from "@/lib/http";
+import { getDataMode } from "@/lib/data-mode";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
 
 /**
  * 화면11 — 결과 피드백 저장 (supabase feedback 테이블).
- * Supabase 미설정(초기 개발)에서는 204로 조용히 성공 처리해 화면 흐름을 막지 않는다
- * (/api/events/route.ts와 같은 폴백 패턴).
+ * 추천 실행(run_id)을 기준으로 저장해 같은 브라우저의 여러 추천을 구분한다.
+ * DB 설정 누락은 성공으로 위장하지 않고 503으로 알린다.
  */
 
 const MAX_WORST_QUESTION_LEN = 500;
@@ -22,6 +23,8 @@ export async function POST(req: Request): Promise<Response> {
 
   const {
     session_id,
+    journey_id,
+    run_id,
     q_time_saved,
     q_conditions_reflected,
     q_reasons_helpful,
@@ -34,6 +37,12 @@ export async function POST(req: Request): Promise<Response> {
 
   // ---------- 필수 항목 ----------
   if (!isUuid(session_id)) {
+    return new Response(null, { status: 400 });
+  }
+  if (!isUuid(journey_id)) {
+    return new Response(null, { status: 400 });
+  }
+  if (run_id !== undefined && run_id !== null && !isUuid(run_id)) {
     return new Response(null, { status: 400 });
   }
   if (
@@ -73,13 +82,17 @@ export async function POST(req: Request): Promise<Response> {
     return new Response(null, { status: 400 });
   }
 
-  // Supabase 미설정 상태에서는 조용히 성공 처리 (개발 폴백)
   if (!isSupabaseConfigured()) {
-    return new Response(null, { status: 204 });
+    return Response.json({ error: "feedback_unavailable" }, { status: 503 });
+  }
+  if (getDataMode() === "live" && !isUuid(run_id)) {
+    return Response.json({ error: "run_id_required" }, { status: 400 });
   }
 
   const row = {
     session_id,
+    journey_id,
+    run_id: typeof run_id === "string" ? run_id : null,
     q_time_saved,
     q_conditions_reflected,
     q_reasons_helpful,
@@ -95,9 +108,11 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   const db = supabaseAdmin();
-  let { error } = await db
-    .from("feedback")
-    .upsert(row, { onConflict: "session_id" });
+  const write = (value: typeof row) =>
+    value.run_id === null
+      ? db.from("feedback").insert(value)
+      : db.from("feedback").upsert(value, { onConflict: "run_id" });
+  let { error } = await write(row);
 
   // 존재하지 않는 상품 id로 FK 오류가 나면 chosen_product_id 없이 1회 재시도
   // (피드백 본문을 잃는 것보다 상품 연결을 포기하는 편이 낫다)
@@ -106,12 +121,7 @@ export async function POST(req: Request): Promise<Response> {
     row.chosen_product_id !== null &&
     error.message.toLowerCase().includes("foreign key")
   ) {
-    ({ error } = await db
-      .from("feedback")
-      .upsert(
-        { ...row, chosen_product_id: null },
-        { onConflict: "session_id" }
-      ));
+    ({ error } = await write({ ...row, chosen_product_id: null }));
   }
 
   if (error) {

@@ -1,15 +1,23 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { answersQuery, parseAnswers } from "@/lib/reco/answers";
 import { evaluateProduct } from "@/lib/reco/engine";
 import { getProductById } from "@/lib/products";
+import { getRecommendationRun } from "@/lib/recommendation-runs";
+import type { Recommendation } from "@/lib/reco/types";
 import { CostBreakdownBlock } from "@/components/CostBreakdownBlock";
 import {
   SellerLinkButton,
 } from "@/components/SellerLinkButton";
 import { buildCheckItems } from "@/lib/check-items";
+import { isDemoMode } from "@/lib/data-mode";
 import { BackIcon, WarnIcon } from "@/components/icons";
 import { CostCheckForm } from "./CostCheckForm";
+
+export const metadata: Metadata = {
+  title: "추가비용 가능성 확인",
+};
 
 /** 추가비용이 생길 수 있는 경우 — 금액을 계산하지 않고 조건만 안내 (기획서 화면9) */
 const EXTRA_COST_CASES = [
@@ -18,7 +26,11 @@ const EXTRA_COST_CASES = [
   "문 앞이 아니라 방 안까지 운반을 요청하는 경우",
 ];
 
-/** 화면9 — 총비용·배송 조건 확인 */
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/** 화면9 — 확인된 비용과 추가비용 가능성 점검 */
 export default async function CostCheckPage({
   params,
   searchParams,
@@ -28,14 +40,27 @@ export default async function CostCheckPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  const isDemo = isDemoMode();
 
-  const product = await getProductById(id);
-  if (!product || product.status !== "public") notFound();
-
-  const answers = parseAnswers(sp);
+  const storedRun = first(sp.run)
+    ? await getRecommendationRun(first(sp.run)!)
+    : null;
+  const answers = storedRun?.answers ?? parseAnswers(sp);
   const query = answersQuery(answers);
-  const rec = evaluateProduct(product, answers);
+  let rec: Recommendation;
+  if (storedRun) {
+    const snapshot = storedRun.result.candidates.find(
+      (candidate) => candidate.product.id === id
+    );
+    if (!snapshot) notFound();
+    rec = snapshot;
+  } else {
+    const product = await getProductById(id);
+    if (!product || product.status !== "public") notFound();
+    rec = evaluateProduct(product, answers);
+  }
   const p = rec.product;
+  const runId = storedRun?.id ?? null;
 
   const hasExtraCostRisk = p.review_risks.includes("extra_cost");
   const checkItems = buildCheckItems({
@@ -49,24 +74,27 @@ export default async function CostCheckPage({
       {/* 상단 바 */}
       <div className="flex items-center gap-3 px-5 pt-6">
         <Link
-          href={`/products/${p.id}?${query}`}
+          href={`/products/${p.id}?${query}${runId ? `&run=${runId}` : ""}`}
           aria-label="상품 상세로 돌아가기"
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-soft"
         >
           <BackIcon size={18} />
         </Link>
-        <h1 className="text-[18px] font-extrabold">우리 집까지 총비용 확인</h1>
+        <h1 className="text-[18px] font-extrabold">추가비용 가능성 확인</h1>
       </div>
 
       <p className="mt-2 px-6 text-[13px] leading-snug text-sub">
         {p.name} · {p.seller_name}
+      </p>
+      <p className="mt-1.5 px-6 text-[13px] leading-relaxed text-sub">
+        확인된 금액과 아직 판매처 확인이 필요한 비용을 나눠서 보여드려요.
       </p>
 
       {/* ① 확인된 비용 분해 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
         <h2 className="mb-3 text-[14px] font-extrabold">지금 확인된 비용</h2>
         <CostBreakdownBlock rec={rec} />
-        <p className="mt-3 text-[12px] leading-relaxed text-faint">
+        <p className="mt-3 text-[13px] leading-relaxed text-faint">
           여기까지가 판매처 정보로 확인된 금액이에요. 아래 경우에 해당하면
           비용이 더 생길 수 있어요.
         </p>
@@ -120,7 +148,10 @@ export default async function CostCheckPage({
         unknownParts={rec.cost.unknownParts}
         hasExtraCostRisk={hasExtraCostRisk}
         hasCarryService={p.carry_service_available}
+        carryServiceKnown={!p.unknown_fields?.includes("carry_service_available")}
         scheduledDelivery={p.scheduled_delivery}
+        scheduledDeliveryKnown={!p.unknown_fields?.includes("scheduled_delivery")}
+        runId={runId}
       />
 
       {/* 하단 — 판매처 이동 */}
@@ -128,9 +159,12 @@ export default async function CostCheckPage({
         <SellerLinkButton
           productId={p.id}
           via="cost_check"
+          runId={runId}
           label="판매처에서 자세히 보기"
           checkItems={checkItems}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[16px] font-extrabold text-white shadow-cta"
+          disabled={isDemo}
+          disabledReason="예시 상품을 사용하는 데모라 판매처 이동을 제공하지 않아요. 위 확인 목록만 참고해 주세요."
+          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-[16px] font-extrabold text-white shadow-cta"
         />
       </div>
     </main>

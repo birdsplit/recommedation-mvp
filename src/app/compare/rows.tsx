@@ -31,6 +31,7 @@ const LEVEL3_LABELS: Record<Level3, string> = {
 
 /** 운반 — carry_service_available과 carry_difficulty 조합 */
 function carryValue(p: Product): string {
+  if (p.unknown_fields?.includes("carry_service_available")) return "미확인";
   if (p.carry_service_available) return "운반 서비스 있음";
   if (p.carry_difficulty === "easy") return "가벼움 (혼자 가능)";
   if (p.carry_difficulty !== null) return "직접 운반 (무거움)";
@@ -39,6 +40,7 @@ function carryValue(p: Product): string {
 
 /** 조립 — self_assembly + 필요 인원 */
 function assemblyValue(p: Product): string {
+  if (p.unknown_fields?.includes("assembly_service_available")) return "미확인";
   if (p.self_assembly === null) return NONE;
   if (p.self_assembly === "not_possible") return "기사 설치";
   return `${LEVEL3_LABELS[p.self_assembly]} (${p.assembly_people}인)`;
@@ -117,8 +119,16 @@ export const COMPARE_ROWS: CompareRow[] = [
   },
   {
     label: "매트리스 포함",
-    value: (rec) => (rec.product.mattress_included ? "포함" : "미포함"),
-    diffKey: (rec) => String(rec.product.mattress_included),
+    value: (rec) =>
+      rec.product.unknown_fields?.includes("mattress_included")
+        ? "미확인"
+        : rec.product.mattress_included
+          ? "포함"
+          : "미포함",
+    diffKey: (rec) =>
+      rec.product.unknown_fields?.includes("mattress_included")
+        ? "unknown"
+        : String(rec.product.mattress_included),
   },
   {
     label: "주요 리뷰 리스크",
@@ -136,7 +146,7 @@ export const COMPARE_ROWS: CompareRow[] = [
   {
     label: "최종 판단",
     value: (rec) => (
-      <span className="text-[11px] font-medium leading-snug text-sub">
+      <span className="text-[13px] font-medium leading-snug text-sub">
         {rec.finalJudgment}
       </span>
     ),

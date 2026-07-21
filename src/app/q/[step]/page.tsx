@@ -4,10 +4,15 @@ import { useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { track } from "@/lib/track";
 import { BackIcon } from "@/components/icons";
+import {
+  parseAssistanceAnswers,
+  type AnswerSearchParams,
+} from "@/lib/reco/answers";
+import type { AssistanceAnswer } from "@/lib/reco/types";
 
 /**
  * 화면2~4 — 필수 질문 3개.
- * 답변은 쿼리 파라미터로 누적한다: /q/1 → /q/2?s=… → /q/3?s=…&c=… → /summary?…
+ * 답변은 쿼리 파라미터로 누적한다: /q/1 → /q/2?s=… → /q/3?s=…&ca=…&a=… → /summary?…
  * 수정 시에는 기존 쿼리를 유지한 채 진입해 선택값이 미리 표시된다.
  */
 
@@ -21,12 +26,20 @@ const Q1_OPTIONS: Option[] = [
   { code: "any", emoji: "🙆", label: "상관없어요" },
 ];
 
-const Q2_OPTIONS: Option[] = [
-  { code: "both", emoji: "💪", label: "운반과 조립 모두 가능해요" },
-  { code: "asm", emoji: "📦", label: "운반은 어렵지만 조립은 가능해요", desc: "집 안까지 옮겨주는 배송이 필요해요" },
-  { code: "carry", emoji: "🔧", label: "운반은 가능하지만 조립은 어려워요", desc: "조립 서비스가 있는 상품을 찾아드려요" },
-  { code: "svc", emoji: "🛠️", label: "운반과 조립 서비스가 모두 필요해요" },
-  { code: "friend", emoji: "🧑‍🤝‍🧑", label: "친구의 도움을 받을 수 있어요" },
+const Q2_CARRY_OPTIONS: Option[] = [
+  { code: "self", emoji: "💪", label: "직접 옮길 수 있어요" },
+  { code: "friend", emoji: "🧑‍🤝‍🧑", label: "친구와 함께 옮길 수 있어요" },
+  {
+    code: "service",
+    emoji: "🚚",
+    label: "집 안 운반 서비스가 필요해요",
+  },
+];
+
+const Q2_ASSEMBLY_OPTIONS: Option[] = [
+  { code: "self", emoji: "🔧", label: "직접 조립할 수 있어요" },
+  { code: "friend", emoji: "🧑‍🤝‍🧑", label: "친구와 함께 조립할 수 있어요" },
+  { code: "service", emoji: "🛠️", label: "조립 서비스가 필요해요" },
 ];
 
 const BUDGETS = [
@@ -91,7 +104,7 @@ function OptionButton({
           {option.label}
         </span>
         {option.desc && (
-          <span className="mt-0.5 block text-[12.5px] font-medium text-faint">
+          <span className="mt-0.5 block text-[13px] font-medium text-faint">
             {option.desc}
           </span>
         )}
@@ -124,7 +137,7 @@ function Pill({
     >
       {label}
       {badge && (
-        <span className="ml-1.5 rounded-full bg-coral-500 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+        <span className="ml-1.5 rounded-full bg-coral-700 px-1.5 py-0.5 text-[13px] font-extrabold text-white">
           {badge}
         </span>
       )}
@@ -137,6 +150,20 @@ export default function QuestionPage() {
   const step = Math.min(3, Math.max(1, Number(params.step) || 1));
   const router = useRouter();
   const sp = useSearchParams();
+  const initialAssistance = useMemo(
+    () =>
+      parseAssistanceAnswers(
+        Object.fromEntries(sp.entries()) as AnswerSearchParams
+      ),
+    [sp]
+  );
+
+  const [carry, setCarry] = useState<AssistanceAnswer | "">(
+    initialAssistance?.carry ?? ""
+  );
+  const [assembly, setAssembly] = useState<AssistanceAnswer | "">(
+    initialAssistance?.assembly ?? ""
+  );
 
   // 질문 3의 로컬 상태 (쿼리의 기존 값으로 초기화 — 수정 시 유지)
   const [budget, setBudget] = useState(sp.get("b") ?? "");
@@ -146,10 +173,22 @@ export default function QuestionPage() {
 
   const query = useMemo(() => new URLSearchParams(sp.toString()), [sp]);
 
-  const selectAndGo = (key: "s" | "c", code: string, next: string) => {
+  const selectAndGo = (key: "s", code: string, next: string) => {
     query.set(key, code);
     track("question_answer", { step, answer: code });
     router.push(`${next}?${query.toString()}`);
+  };
+
+  const completeQ2 = () => {
+    if (!carry || !assembly) return;
+    query.set("ca", carry);
+    query.set("a", assembly);
+    query.delete("c");
+    track("question_answer", {
+      step: 2,
+      answer: { carry, assembly },
+    });
+    router.push(`/q/3?${query.toString()}`);
   };
 
   const completeQ3 = (skip: boolean) => {
@@ -214,7 +253,11 @@ export default function QuestionPage() {
             <br />
             어떻게 쓰고 싶나요?
           </h1>
-          <div className="mt-6 space-y-3">
+          <p className="mt-2 text-[13.5px] leading-relaxed text-sub">
+            아래에서 가장 중요한 한 가지를 골라주세요.
+          </p>
+          <fieldset className="mt-6 space-y-3">
+            <legend className="sr-only">가장 중요한 침대 밑 공간 조건</legend>
             {Q1_OPTIONS.map((o) => (
               <OptionButton
                 key={o.code}
@@ -223,7 +266,7 @@ export default function QuestionPage() {
                 onClick={() => selectAndGo("s", o.code, "/q/2")}
               />
             ))}
-          </div>
+          </fieldset>
         </>
       )}
 
@@ -235,19 +278,50 @@ export default function QuestionPage() {
             어디까지 가능한가요?
           </h1>
           <p className="mt-2 text-[13.5px] leading-relaxed text-sub">
-            운반은 집 안까지 옮기는 일, 조립은 부품을 조립하는 일이에요 — 따로
-            생각해 주세요.
+            운반은 집 안까지 옮기는 일, 조립은 부품을 침대로 만드는 일이에요.
+            각각 골라주세요.
           </p>
-          <div className="mt-5 space-y-3">
-            {Q2_OPTIONS.map((o) => (
+          <fieldset className="mt-5 space-y-3">
+            <legend className="mb-2.5 text-[14px] font-extrabold text-faint">
+              1. 집 안 운반
+            </legend>
+            {Q2_CARRY_OPTIONS.map((o) => (
               <OptionButton
                 key={o.code}
                 option={o}
-                selected={sp.get("c") === o.code}
-                onClick={() => selectAndGo("c", o.code, "/q/3")}
+                selected={carry === o.code}
+                onClick={() => setCarry(o.code as AssistanceAnswer)}
               />
             ))}
-          </div>
+          </fieldset>
+
+          <fieldset className="mt-6 space-y-3">
+            <legend className="mb-2.5 text-[14px] font-extrabold text-faint">
+              2. 조립
+            </legend>
+            {Q2_ASSEMBLY_OPTIONS.map((o) => (
+              <OptionButton
+                key={o.code}
+                option={o}
+                selected={assembly === o.code}
+                onClick={() => setAssembly(o.code as AssistanceAnswer)}
+              />
+            ))}
+          </fieldset>
+
+          <p className="sr-only" aria-live="polite">
+            {carry && assembly
+              ? "운반과 조립 방법을 모두 선택했습니다."
+              : "운반과 조립 방법을 각각 선택해 주세요."}
+          </p>
+          <button
+            type="button"
+            onClick={completeQ2}
+            disabled={!carry || !assembly}
+            className="mt-7 w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-[18px] text-[18px] font-extrabold text-white shadow-cta disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            예산과 배송 조건 고르기
+          </button>
         </>
       )}
 
@@ -259,8 +333,10 @@ export default function QuestionPage() {
             어떻게 되나요?
           </h1>
 
-          <div className="mt-6">
-            <p className="mb-2.5 text-[13px] font-extrabold text-faint">예산</p>
+          <fieldset className="mt-6">
+            <legend className="mb-2.5 text-[13px] font-extrabold text-faint">
+              예산
+            </legend>
             <div className="flex flex-wrap gap-2">
               {BUDGETS.map((b) => (
                 <Pill
@@ -271,12 +347,12 @@ export default function QuestionPage() {
                 />
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="mt-5">
-            <p className="mb-2.5 text-[13px] font-extrabold text-faint">
+          <fieldset className="mt-5">
+            <legend className="mb-2.5 text-[13px] font-extrabold text-faint">
               가격은 어떤 기준으로 볼까요?
-            </p>
+            </legend>
             <div className="flex flex-wrap gap-2">
               {BASES.map((b) => (
                 <Pill
@@ -288,12 +364,16 @@ export default function QuestionPage() {
                 />
               ))}
             </div>
-          </div>
-
-          <div className="mt-5">
-            <p className="mb-2.5 text-[13px] font-extrabold text-faint">
-              언제까지 받아야 하나요?
+            <p className="mt-2.5 text-[13px] leading-relaxed text-sub">
+              배송비·설치비·매트리스 가격이 확인되지 않으면 예산 안이라고
+              단정하지 않고, 결과에 &apos;금액 확인 필요&apos;로 표시해요.
             </p>
+          </fieldset>
+
+          <fieldset className="mt-5">
+            <legend className="mb-2.5 text-[13px] font-extrabold text-faint">
+              언제까지 받아야 하나요?
+            </legend>
             <div className="flex flex-wrap gap-2">
               {DELIVERIES.map((d) => (
                 <Pill
@@ -304,13 +384,13 @@ export default function QuestionPage() {
                 />
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="mt-5">
-            <p className="mb-2.5 text-[13px] font-extrabold text-faint">
+          <fieldset className="mt-5">
+            <legend className="mb-2.5 text-[13px] font-extrabold text-faint">
               매트리스도 필요한가요?{" "}
               <span className="font-medium">(선택)</span>
-            </p>
+            </legend>
             <div className="flex flex-wrap gap-2">
               {MATTRESS.map((m) => (
                 <Pill
@@ -321,13 +401,13 @@ export default function QuestionPage() {
                 />
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div className="mt-8 space-y-3">
             <button
               type="button"
               onClick={() => completeQ3(false)}
-              className="w-full rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-[18px] text-[18px] font-extrabold text-white shadow-cta"
+              className="w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-[18px] text-[18px] font-extrabold text-white shadow-cta"
             >
               내 조건 확인하기
             </button>

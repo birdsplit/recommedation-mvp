@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
+import { DataModeBanner } from "@/components/DataModeBanner";
+import { AppFrame } from "@/components/AppFrame";
 import { SERVICE_NAME } from "@/lib/constants";
+import { getDataMode } from "@/lib/data-mode";
 
 export const metadata: Metadata = {
   title: {
@@ -23,12 +26,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const dataMode = getDataMode();
+
   return (
     <html lang="ko">
       <body className="font-sans">
-        <div className="mx-auto min-h-dvh w-full max-w-[430px] bg-cream">
+        <AppFrame dataMode={dataMode}>
+          <DataModeBanner mode={dataMode} />
           {children}
-        </div>
+        </AppFrame>
       </body>
     </html>
   );

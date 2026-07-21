@@ -7,7 +7,12 @@ import {
   loadLastCandidateIds,
   loadLastQuery,
 } from "@/components/RememberAnswers";
-import { getSessionId, track } from "@/lib/track";
+import {
+  getCurrentRunId,
+  getJourneyId,
+  getSessionId,
+  track,
+} from "@/lib/track";
 import { hasAnswers } from "@/lib/reco/answers";
 import { isUuid } from "@/lib/uuid";
 
@@ -46,6 +51,12 @@ function useFeedbackQuery(): string {
   return useSyncExternalStore(emptySubscribe, loadFeedbackQuery, () => "");
 }
 
+function loadRunId(): string {
+  if (typeof window === "undefined") return "";
+  const value = new URLSearchParams(window.location.search).get("run");
+  return isUuid(value) ? value : "";
+}
+
 /** 1~5 원형 버튼 척도 문항 */
 function ScaleQuestion({
   number,
@@ -71,7 +82,7 @@ function ScaleQuestion({
             onClick={() => onChange(n)}
             className={`h-11 w-11 rounded-full text-[15px] font-extrabold transition-colors ${
               value === n
-                ? "bg-gradient-to-r from-[#F95B36] to-[#EE4E26] text-white shadow-cta"
+                ? "bg-gradient-to-r from-[#C8431B] to-[#A82E0C] text-white shadow-cta"
                 : "border-2 border-[#F0DACD] bg-white text-sub"
             }`}
           >
@@ -79,7 +90,7 @@ function ScaleQuestion({
           </button>
         ))}
       </div>
-      <div className="mt-2 flex justify-between px-1 text-[11.5px] font-semibold text-faint">
+      <div className="mt-2 flex justify-between px-1 text-[13px] font-semibold text-faint">
         <span>전혀 아니에요</span>
         <span>매우 그래요</span>
       </div>
@@ -114,7 +125,7 @@ function YesNoQuestion({
             onClick={() => onChange(opt.v)}
             className={`rounded-full py-3 text-[14.5px] font-extrabold transition-colors ${
               value === opt.v
-                ? "bg-gradient-to-r from-[#F95B36] to-[#EE4E26] text-white shadow-cta"
+                ? "bg-gradient-to-r from-[#C8431B] to-[#A82E0C] text-white shadow-cta"
                 : "border-2 border-[#F0DACD] bg-white text-sub"
             }`}
           >
@@ -140,7 +151,7 @@ function QuestionTitle({
       <span className="mr-1.5 text-coral-600">Q{number}.</span>
       {title}
       <span
-        className={`ml-1.5 align-middle text-[10.5px] font-bold ${
+        className={`ml-1.5 align-middle text-[13px] font-bold ${
           required ? "text-coral-600" : "text-faint"
         }`}
       >
@@ -167,6 +178,7 @@ export default function FeedbackPage() {
   // 화면 상태
   const [candidates, setCandidates] = useState<ProductSummary[]>([]);
   const lastQuery = useFeedbackQuery();
+  const runId = useSyncExternalStore(emptySubscribe, loadRunId, () => "");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,7 +211,11 @@ export default function FeedbackPage() {
       });
   }, []);
 
-  const backHref = lastQuery ? `/results?${lastQuery}` : "/";
+  const backHref = runId
+    ? `/results/${runId}`
+    : lastQuery
+      ? `/results?${lastQuery}`
+      : "/";
   const missingCount = useMemo(
     () =>
       [
@@ -233,6 +249,8 @@ export default function FeedbackPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: getSessionId(),
+          journey_id: getJourneyId(),
+          run_id: runId || getCurrentRunId(),
           q_time_saved: timeSaved,
           q_conditions_reflected: conditionsReflected,
           q_reasons_helpful: reasonsHelpful,
@@ -244,16 +262,22 @@ export default function FeedbackPage() {
         }),
       });
       if (!res.ok) throw new Error(`feedback ${res.status}`);
-      track("feedback_submit", {
-        foundCandidate,
-        wouldReuse,
-        postPurchaseOptin: optin,
-        choseProduct: Boolean(chosenId),
-      });
+      track(
+        "feedback_submit",
+        {
+          foundCandidate,
+          wouldReuse,
+          postPurchaseOptin: optin,
+          choseProduct: Boolean(chosenId),
+        },
+        { runId: runId || getCurrentRunId() }
+      );
       setSubmitted(true);
       window.scrollTo({ top: 0 });
     } catch {
-      setError("저장에 실패했어요. 잠시 후 다시 시도해주세요.");
+      setError(
+        "후기를 저장하지 못했어요. 데모 또는 데이터 저장소 미설정 상태일 수 있어요. 잠시 후 다시 시도해주세요."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -278,13 +302,13 @@ export default function FeedbackPage() {
           <div className="mt-6 space-y-2.5">
             <Link
               href="/"
-              className="block w-full rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-center text-[16px] font-extrabold text-white shadow-cta"
+              className="block w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-center text-[16px] font-extrabold text-white shadow-cta"
             >
               처음으로
             </Link>
-            {lastQuery && (
+            {(runId || lastQuery) && (
               <Link
-                href={`/results?${lastQuery}`}
+                href={runId ? `/results/${runId}` : `/results?${lastQuery}`}
                 className="block w-full rounded-full border-2 border-peach-200 bg-white py-3.5 text-center text-[14.5px] font-bold text-coral-700"
               >
                 결과로 돌아가기
@@ -364,7 +388,7 @@ export default function FeedbackPage() {
                 onClick={() => setWorstChoice(c.code)}
                 className={`rounded-full px-4 py-2.5 text-[13.5px] font-bold transition-colors ${
                   worstChoice === c.code
-                    ? "bg-gradient-to-r from-[#F95B36] to-[#EE4E26] text-white shadow-cta"
+                    ? "bg-gradient-to-r from-[#C8431B] to-[#A82E0C] text-white shadow-cta"
                     : "border-2 border-[#F0DACD] bg-white text-sub"
                 }`}
               >
@@ -410,7 +434,7 @@ export default function FeedbackPage() {
                     <span className="block text-[14px] font-bold leading-snug">
                       {p.name}
                     </span>
-                    <span className="block text-[11.5px] font-medium text-faint">
+                    <span className="block text-[13px] font-medium text-faint">
                       {p.seller_name}
                     </span>
                   </span>
@@ -443,11 +467,11 @@ export default function FeedbackPage() {
           <span>
             <span className="block text-[14.5px] font-extrabold leading-snug">
               구매 후 2~4주 뒤 사용 경험을 물어봐도 될까요?
-              <span className="ml-1.5 align-middle text-[10.5px] font-bold text-faint">
+              <span className="ml-1.5 align-middle text-[13px] font-bold text-faint">
                 선택
               </span>
             </span>
-            <span className="mt-1 block text-[12.5px] leading-relaxed text-faint">
+            <span className="mt-1 block text-[13px] leading-relaxed text-faint">
               연락처는 받지 않아요 — 다음 방문 때 물어볼게요.
             </span>
           </span>
@@ -457,7 +481,7 @@ export default function FeedbackPage() {
       {/* 제출 */}
       <div className="mt-6 px-5">
         {error && (
-          <p className="mb-2.5 rounded-2xl bg-[#FCE8E4] px-4 py-3 text-center text-[13px] font-bold text-coral-700">
+          <p role="alert" className="mb-2.5 rounded-2xl bg-[#FCE8E4] px-4 py-3 text-center text-[13px] font-bold text-coral-700">
             {error}
           </p>
         )}
@@ -467,14 +491,14 @@ export default function FeedbackPage() {
           disabled={!canSubmit}
           className={`w-full rounded-full py-4 text-[17px] font-extrabold transition-colors ${
             canSubmit
-              ? "bg-gradient-to-r from-[#F95B36] to-[#EE4E26] text-white shadow-cta"
+              ? "bg-gradient-to-r from-[#C8431B] to-[#A82E0C] text-white shadow-cta"
               : "bg-[#EFE7DA] text-faint"
           }`}
         >
           {submitting ? "저장하는 중…" : "후기 보내기"}
         </button>
         {missingCount > 0 && (
-          <p className="mt-2.5 text-center text-[12.5px] font-semibold text-faint">
+          <p className="mt-2.5 text-center text-[13px] font-semibold text-faint">
             필수 문항 {missingCount}개에 답해주시면 보낼 수 있어요
           </p>
         )}

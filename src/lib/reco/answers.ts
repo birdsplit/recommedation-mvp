@@ -1,7 +1,7 @@
 import type {
+  AssistanceAnswer,
   Answers,
   Budget,
-  CarryAnswer,
   DeliveryAnswer,
   PriceBasis,
   StorageAnswer,
@@ -11,7 +11,8 @@ import type {
  * 답변 ↔ URL 쿼리 인코딩.
  * 답변을 URL에 실어 /results가 새로고침·공유 가능하고, 조건 수정은
  * 쿼리를 유지한 채 /q/[step]으로 돌아가는 링크로 처리한다.
- * 쿼리 키: s(수납) c(운반·조립) b(예산) pb(가격기준) d(배송) m(매트리스)
+ * 쿼리 키: s(수납) ca(운반) a(조립) b(예산) pb(가격기준) d(배송) m(매트리스)
+ * 이전 버전의 c(운반·조립 조합)는 읽기만 지원한다.
  */
 
 const STORAGE_CODES: Record<string, StorageAnswer> = {
@@ -22,12 +23,21 @@ const STORAGE_CODES: Record<string, StorageAnswer> = {
   any: "any",
 };
 
-const CARRY_CODES: Record<string, CarryAnswer> = {
-  both: "both_ok",
-  asm: "assembly_only",
-  carry: "carry_only",
-  svc: "need_both",
-  friend: "friend_help",
+const ASSISTANCE_CODES: Record<string, AssistanceAnswer> = {
+  self: "self",
+  friend: "friend",
+  service: "service",
+};
+
+const LEGACY_CARRY_CODES: Record<
+  string,
+  { carry: AssistanceAnswer; assembly: AssistanceAnswer }
+> = {
+  both: { carry: "self", assembly: "self" },
+  asm: { carry: "service", assembly: "self" },
+  carry: { carry: "self", assembly: "service" },
+  svc: { carry: "service", assembly: "service" },
+  friend: { carry: "friend", assembly: "friend" },
 };
 
 const DELIVERY_CODES: Record<string, DeliveryAnswer> = {
@@ -56,7 +66,8 @@ function lookup<T extends string>(
 
 export const DEFAULT_ANSWERS: Answers = {
   storage: "any",
-  carry: "both_ok",
+  carry: "self",
+  assembly: "self",
   budget: null,
   priceBasis: "total",
   delivery: "any",
@@ -66,7 +77,8 @@ export const DEFAULT_ANSWERS: Answers = {
 export function encodeAnswers(a: Answers): URLSearchParams {
   const q = new URLSearchParams();
   q.set("s", codeOf(STORAGE_CODES, a.storage));
-  q.set("c", codeOf(CARRY_CODES, a.carry));
+  q.set("ca", codeOf(ASSISTANCE_CODES, a.carry));
+  q.set("a", codeOf(ASSISTANCE_CODES, a.assembly));
   if (a.budget !== null) q.set("b", String(a.budget));
   q.set("pb", a.priceBasis === "product_only" ? "item" : "total");
   q.set("d", codeOf(DELIVERY_CODES, a.delivery));
@@ -78,15 +90,40 @@ export function answersQuery(a: Answers): string {
   return encodeAnswers(a).toString();
 }
 
-type SearchParams = Record<string, string | string[] | undefined>;
+export type AnswerSearchParams = Record<
+  string,
+  string | string[] | undefined
+>;
 
 function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-export function parseAnswers(sp: SearchParams): Answers {
+export interface AssistanceAnswers {
+  carry: AssistanceAnswer;
+  assembly: AssistanceAnswer;
+}
+
+/**
+ * 새 독립 답변(ca/a)을 우선하고, 둘 다 없거나 유효하지 않으면 예전 c 코드를
+ * 해석한다. 새 답변은 두 값이 모두 유효할 때만 완료된 것으로 본다.
+ */
+export function parseAssistanceAnswers(
+  sp: AnswerSearchParams
+): AssistanceAnswers | null {
+  const carry = lookup(ASSISTANCE_CODES, first(sp.ca));
+  const assembly = lookup(ASSISTANCE_CODES, first(sp.a));
+  if (carry && assembly) return { carry, assembly };
+
+  const legacy = first(sp.c);
+  return legacy !== undefined &&
+    Object.prototype.hasOwnProperty.call(LEGACY_CARRY_CODES, legacy)
+    ? LEGACY_CARRY_CODES[legacy]
+    : null;
+}
+
+export function parseAnswers(sp: AnswerSearchParams): Answers {
   const s = first(sp.s);
-  const c = first(sp.c);
   const b = first(sp.b);
   const pb = first(sp.pb);
   const d = first(sp.d);
@@ -97,10 +134,14 @@ export function parseAnswers(sp: SearchParams): Answers {
       ? (Number(b) as Budget)
       : null;
   const priceBasis: PriceBasis = pb === "item" ? "product_only" : "total";
+  const assistance = parseAssistanceAnswers(sp) ?? {
+    carry: DEFAULT_ANSWERS.carry,
+    assembly: DEFAULT_ANSWERS.assembly,
+  };
 
   return {
     storage: lookup(STORAGE_CODES, s) ?? DEFAULT_ANSWERS.storage,
-    carry: lookup(CARRY_CODES, c) ?? DEFAULT_ANSWERS.carry,
+    ...assistance,
     budget,
     priceBasis,
     delivery: lookup(DELIVERY_CODES, d) ?? DEFAULT_ANSWERS.delivery,
@@ -109,10 +150,8 @@ export function parseAnswers(sp: SearchParams): Answers {
 }
 
 /** 답변이 실제로 입력되었는지 (질문을 건너뛰고 결과로 직행하는 것 방지용) */
-export function hasAnswers(sp: SearchParams): boolean {
-  return Boolean(
-    lookup(STORAGE_CODES, first(sp.s)) && lookup(CARRY_CODES, first(sp.c))
-  );
+export function hasAnswers(sp: AnswerSearchParams): boolean {
+  return Boolean(lookup(STORAGE_CODES, first(sp.s)) && parseAssistanceAnswers(sp));
 }
 
 // ---------- 한국어 요약 (화면5 조건 요약, 결과 상단 조건 바) ----------
@@ -125,13 +164,22 @@ export const STORAGE_ANSWER_LABELS: Record<StorageAnswer, string> = {
   any: "수납 상관없음",
 };
 
-export const CARRY_ANSWER_LABELS: Record<CarryAnswer, string> = {
-  both_ok: "운반·조립 직접 가능",
-  assembly_only: "운반은 어려움 · 조립 가능",
-  carry_only: "운반 가능 · 조립은 어려움",
-  need_both: "운반·조립 서비스 모두 필요",
-  friend_help: "친구 도움 가능",
+/** 예전 import 이름을 유지하되 이제는 운반 답변만 표현한다. */
+export const CARRY_ANSWER_LABELS: Record<AssistanceAnswer, string> = {
+  self: "직접 운반 가능",
+  friend: "친구와 운반 가능",
+  service: "집 안 운반 서비스 필요",
 };
+
+export const ASSEMBLY_ANSWER_LABELS: Record<AssistanceAnswer, string> = {
+  self: "직접 조립 가능",
+  friend: "친구와 조립 가능",
+  service: "조립 서비스 필요",
+};
+
+export function combinedAssistanceLabel(a: Answers): string {
+  return `${CARRY_ANSWER_LABELS[a.carry]} · ${ASSEMBLY_ANSWER_LABELS[a.assembly]}`;
+}
 
 export const DELIVERY_ANSWER_LABELS: Record<DeliveryAnswer, string> = {
   this_week: "일주일 안 배송",
@@ -150,7 +198,7 @@ export function budgetLabel(a: Answers): string {
 export function summarizeAnswers(a: Answers): string[] {
   const chips = [
     STORAGE_ANSWER_LABELS[a.storage],
-    CARRY_ANSWER_LABELS[a.carry],
+    combinedAssistanceLabel(a),
     budgetLabel(a),
     DELIVERY_ANSWER_LABELS[a.delivery],
   ];

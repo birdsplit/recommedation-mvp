@@ -79,10 +79,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <p className="mb-2 text-[13px] font-extrabold">{label}</p>
+    <fieldset>
+      <legend className="mb-2 text-[13px] font-extrabold">{label}</legend>
       {children}
-    </div>
+    </fieldset>
   );
 }
 
@@ -92,14 +92,20 @@ export function CostCheckForm({
   unknownParts,
   hasExtraCostRisk,
   hasCarryService,
+  carryServiceKnown,
   scheduledDelivery,
+  scheduledDeliveryKnown,
+  runId,
 }: {
   productId: string;
   knownTotal: number;
   unknownParts: string[];
   hasExtraCostRisk: boolean;
   hasCarryService: boolean;
+  carryServiceKnown: boolean;
   scheduledDelivery: boolean;
+  scheduledDeliveryKnown: boolean;
+  runId?: string | null;
 }) {
   const [region, setRegion] = useState<string | null>(null);
   const [elevator, setElevator] = useState<Elevator | null>(null);
@@ -109,14 +115,11 @@ export function CostCheckForm({
   const [submitted, setSubmitted] = useState(false);
 
   const onSubmit = () => {
-    track("cost_check", {
-      productId,
-      region,
-      elevator,
-      stairs,
-      insideCarry,
-      timing,
-    });
+    track(
+      "cost_check",
+      { productId, region, elevator, stairs, insideCarry, timing },
+      { runId }
+    );
     setSubmitted(true);
   };
 
@@ -141,7 +144,9 @@ export function CostCheckForm({
     }
     if (insideCarry === "yes") {
       items.push(
-        hasCarryService
+        !carryServiceKnown
+          ? "집 안 운반 서비스 제공 여부와 추가비를 판매처에 확인하세요."
+          : hasCarryService
           ? "방 안까지 운반이 기본인지, 추가비가 있는지 문의하세요."
           : "이 상품은 운반 서비스가 없어요 — 문 앞 배송 기준이라 방 안 운반은 직접 해야 할 수 있어요."
       );
@@ -151,7 +156,9 @@ export function CostCheckForm({
         `${TIMING_LABELS[timing]}에 받으려면 실제 출고일과 재고를 먼저 확인하세요.`
       );
       items.push(
-        scheduledDelivery
+        !scheduledDeliveryKnown
+          ? "지정일 배송 가능 여부를 판매처에 확인하세요."
+          : scheduledDelivery
           ? "지정일 배송이 가능한 상품이에요 — 원하는 날짜를 미리 말해두세요."
           : "지정일 배송이 안 되는 상품이에요 — 배송 연락을 기다려야 해요."
       );
@@ -167,7 +174,7 @@ export function CostCheckForm({
       <h2 className="text-[14px] font-extrabold">
         우리 집 조건을 알려주시면 확인 목록을 만들어드려요
       </h2>
-      <p className="mt-1.5 text-[12.5px] leading-relaxed text-faint">
+      <p className="mt-1.5 text-[13px] leading-relaxed text-faint">
         전부 선택 사항이에요. 입력한 조건으로 금액을 계산하지는 않아요 —
         정확한 추가비용은 판매처만 알 수 있어서, 대신 물어볼 것을
         정리해드려요.
@@ -238,13 +245,18 @@ export function CostCheckForm({
       <button
         type="button"
         onClick={onSubmit}
-        className="mt-5 w-full rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[16px] font-extrabold text-white shadow-cta"
+        className="mt-5 w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-[16px] font-extrabold text-white shadow-cta"
       >
         이 조건으로 확인 항목 만들기
       </button>
 
       {submitted && (
-        <div className="mt-4 rounded-2xl bg-cream p-4">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="mt-4 rounded-2xl bg-cream p-4"
+        >
           <div className="flex items-center gap-1.5">
             <CheckCircleIcon size={16} className="shrink-0 text-leaf-700" />
             <p className="text-[13px] font-extrabold text-leaf-700">
@@ -252,7 +264,7 @@ export function CostCheckForm({
             </p>
           </div>
           <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink">
-            예상 총비용{" "}
+            현재 확인된 금액은{" "}
             <b className="text-[16px] font-extrabold text-coral-700">
               {formatWon(knownTotal)}
             </b>
@@ -262,7 +274,7 @@ export function CostCheckForm({
             위 &lsquo;추가비용이 생길 수 있는 경우&rsquo;에 해당하면 그만큼
             더해질 수 있어요.
           </p>
-          <p className="mt-3 text-[12.5px] font-extrabold text-sub">
+          <p className="mt-3 text-[13px] font-extrabold text-sub">
             판매처에 이렇게 확인하세요
           </p>
           <ul className="mt-1.5 space-y-2">
@@ -279,7 +291,7 @@ export function CostCheckForm({
         </div>
       )}
 
-      <p className="mt-4 text-[12px] leading-relaxed text-faint">
+      <p className="mt-4 text-[13px] leading-relaxed text-faint">
         연락처나 상세 주소는 받지 않아요. 입력한 조건은 확인 목록을 만드는
         데만 써요.
       </p>

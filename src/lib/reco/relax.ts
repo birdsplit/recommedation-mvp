@@ -6,7 +6,7 @@ import type {
   RelaxSuggestion,
 } from "./types";
 import { computeCost } from "./cost";
-import { passesAll, runChecks } from "./filter";
+import { isEligible, runChecks } from "./filter";
 
 /**
  * 빈 결과·후보 부족 시 조건 완화 제안 (기획서 §7.5).
@@ -18,7 +18,7 @@ function countPassing(products: Product[], answers: Answers): number {
   return products.filter(
     (p) =>
       p.status === "public" &&
-      passesAll(runChecks(p, answers, computeCost(p, answers)))
+      isEligible(runChecks(p, answers, computeCost(p, answers)))
   ).length;
 }
 
@@ -96,13 +96,26 @@ export function buildRelaxSuggestions(
     }
   }
 
-  // 운반·조립 서비스 조건 완화
-  if (answers.carry !== "both_ok" && answers.carry !== "friend_help") {
-    const relaxed: Answers = { ...answers, carry: "both_ok" };
+  // 운반 서비스 조건 완화
+  if (answers.carry === "service") {
+    const relaxed: Answers = { ...answers, carry: "self" };
     const gained = countPassing(products, relaxed) - currentCount;
     if (gained > 0) {
       suggestions.push({
-        label: "운반·조립을 직접 해결할 수 있다면",
+        label: "운반을 직접 해결할 수 있다면",
+        gained,
+        relaxed,
+      });
+    }
+  }
+
+  // 조립 서비스 조건 완화
+  if (answers.assembly === "service") {
+    const relaxed: Answers = { ...answers, assembly: "self" };
+    const gained = countPassing(products, relaxed) - currentCount;
+    if (gained > 0) {
+      suggestions.push({
+        label: "조립을 직접 해결할 수 있다면",
         gained,
         relaxed,
       });

@@ -18,7 +18,11 @@ export function CostBreakdownBlock({ rec }: { rec: Recommendation }) {
         <div className="flex justify-between">
           <dt className="text-sub">배송비</dt>
           <dd className="font-semibold">
-            {p.shipping_fee === 0 ? "무료" : formatWon(p.shipping_fee)}
+            {(p.shipping_fee_confidence ?? p.data_confidence) !== "confirmed"
+              ? "미확인"
+              : p.shipping_fee === 0
+                ? "무료"
+                : formatWon(p.shipping_fee)}
           </dd>
         </div>
         <div className="flex justify-between">
@@ -37,7 +41,7 @@ export function CostBreakdownBlock({ rec }: { rec: Recommendation }) {
         </span>
       </div>
       {rec.cost.unknownParts.length > 0 && (
-        <p className="mt-1.5 text-right text-[11.5px] font-medium text-honey-700">
+        <p className="mt-1.5 text-right text-[13px] font-medium text-honey-700">
           + {rec.cost.unknownParts.join("·")} 별도 (판매처 확인)
         </p>
       )}

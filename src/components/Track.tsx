@@ -9,21 +9,23 @@ import { track, trackVisit } from "@/lib/track";
 export function EventOnMount({
   type,
   payload,
+  runId,
 }: {
   type: EventType;
   payload?: Record<string, unknown>;
+  runId?: string | null;
 }) {
-  const eventKey = `${type}:${JSON.stringify(payload ?? {})}`;
+  const eventKey = `${type}:${runId ?? ""}:${JSON.stringify(payload ?? {})}`;
   const firedKey = useRef<string | null>(null);
   useEffect(() => {
     if (firedKey.current === eventKey) return;
     firedKey.current = eventKey;
-    track(type, payload);
-  }, [eventKey, payload, type]);
+    track(type, payload, { runId });
+  }, [eventKey, payload, runId, type]);
   return null;
 }
 
-/** 랜딩 방문 기록 (세션당 하루 1회) */
+/** 랜딩 방문 기록과 새 추천 여정 시작 */
 export function VisitTracker({ path }: { path: string }) {
   const fired = useRef(false);
   useEffect(() => {
@@ -41,15 +43,21 @@ export function TrackedLink({
   href,
   className,
   children,
+  runId,
 }: {
   event: EventType;
   payload?: Record<string, unknown>;
   href: string;
   className?: string;
   children: React.ReactNode;
+  runId?: string | null;
 }) {
   return (
-    <Link href={href} className={className} onClick={() => track(event, payload)}>
+    <Link
+      href={href}
+      className={className}
+      onClick={() => track(event, payload, { runId })}
+    >
       {children}
     </Link>
   );

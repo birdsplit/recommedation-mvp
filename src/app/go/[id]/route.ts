@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getProductById } from "@/lib/products";
+import { isDemoMode } from "@/lib/data-mode";
+import {
+  getOperationalProductState,
+  getProductById,
+} from "@/lib/products";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
 
@@ -10,7 +14,13 @@ import { isUuid } from "@/lib/uuid";
  * 기록 실패가 사용자의 이동을 막아서는 안 된다 (기획서 §11.1, §13).
  */
 
-const VIA_VALUES = new Set(["cost_check", "detail", "results", "compare"]);
+const VIA_VALUES = new Set([
+  "cost_check",
+  "detail",
+  "results",
+  "compare",
+  "source",
+]);
 
 export async function GET(
   req: Request,
@@ -20,16 +30,46 @@ export async function GET(
   const searchParams = new URL(req.url).searchParams;
   const rankRaw = searchParams.get("rank");
   const viaRaw = searchParams.get("via");
+  const runRaw = searchParams.get("run");
   const rank = rankRaw && /^[1-3]$/.test(rankRaw) ? Number(rankRaw) : null;
   const via = viaRaw && VIA_VALUES.has(viaRaw) ? viaRaw : null;
+  const runId = isUuid(runRaw) ? runRaw : null;
+
+  // 예시 상품을 실제 판매 상품으로 오인하지 않도록 URL 직접 접근도 차단한다.
+  if (isDemoMode()) {
+    return Response.json(
+      { error: "demo_mode", message: "데모에서는 판매처 이동을 제공하지 않습니다." },
+      { status: 403 }
+    );
+  }
 
   const cookieStore = await cookies();
   const sidRaw = cookieStore.get("sid")?.value ?? null;
   const sid = isUuid(sidRaw) ? sidRaw : crypto.randomUUID();
+  const journeyRaw = cookieStore.get("jid")?.value ?? null;
+  const journeyId = isUuid(journeyRaw) ? journeyRaw : crypto.randomUUID();
+  const isTest = cookieStore.get("modoo_test")?.value === "1";
+  const cohort = isTest
+    ? cookieStore.get("modoo_cohort")?.value ?? null
+    : null;
 
   const product = await getProductById(id);
   if (!product || product.status !== "public") {
     return NextResponse.redirect(new URL("/", req.url), 302);
+  }
+  const operational = await getOperationalProductState(id);
+  if (
+    !operational ||
+    operational.status !== "public" ||
+    operational.availability !== "in_stock"
+  ) {
+    return Response.json(
+      {
+        error: "product_unavailable",
+        message: "현재 품절 또는 재확인 상태라 판매처 이동을 중단했습니다.",
+      },
+      { status: 409 }
+    );
   }
 
   if (isSupabaseConfigured()) {
@@ -38,7 +78,12 @@ export async function GET(
         .from("events")
         .insert({
           session_id: sid,
-          event_type: "outbound_click",
+          journey_id: journeyId,
+          run_id: runId,
+          event_version: 2,
+          cohort,
+          is_test: isTest,
+          event_type: via === "source" ? "source_open" : "outbound_click",
           payload: {
             productId: id,
             ...(rank !== null ? { rank } : {}),
@@ -57,7 +102,11 @@ export async function GET(
 
   let sellerUrl: URL;
   try {
-    sellerUrl = new URL(product.seller_url);
+    const destination =
+      via === "source"
+        ? operational.source_url ?? operational.seller_url
+        : operational.seller_url;
+    sellerUrl = new URL(destination);
     if (sellerUrl.protocol !== "https:" && sellerUrl.protocol !== "http:") {
       throw new Error("지원하지 않는 판매처 URL 프로토콜");
     }
@@ -70,7 +119,15 @@ export async function GET(
   if (!isUuid(sidRaw)) {
     response.cookies.set("sid", sid, {
       path: "/",
-      maxAge: 60 * 60 * 24 * 365,
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+  }
+  if (!isUuid(journeyRaw)) {
+    response.cookies.set("jid", journeyId, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     });

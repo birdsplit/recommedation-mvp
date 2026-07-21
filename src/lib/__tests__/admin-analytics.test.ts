@@ -8,7 +8,9 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 import {
+  BRANCH_ACTIONS,
   FUNNEL_STAGES,
+  buildBranchRows,
   buildFunnelRows,
   createExportCsv,
   escapeCsvCell,
@@ -26,17 +28,20 @@ describe("관리자 퍼널", () => {
     vi.mocked(isSupabaseConfigured).mockReturnValue(false);
   });
 
-  it("기획된 10개 행동 단계를 순서대로 집계한다", () => {
+  it("결과 전 5단계와 결과 후 분기 행동을 분리한다", () => {
     expect(FUNNEL_STAGES.map((stage) => stage.eventType)).toEqual([
       "visit",
       "start_click",
       "questions_complete",
       "summary_view",
       "results_view",
+    ]);
+    expect(BRANCH_ACTIONS.map((stage) => stage.eventType)).toEqual([
       "product_detail_view",
       "compare_add",
       "cost_check",
       "outbound_click",
+      "source_open",
       "feedback_submit",
     ]);
   });
@@ -58,9 +63,13 @@ describe("관리자 퍼널", () => {
   it("전 단계가 0건이면 오해를 부르는 퍼센트를 만들지 않는다", () => {
     const rows = buildFunnelRows({ results_view: 2 });
 
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(5);
     expect(rows[4]).toMatchObject({ count: 2, previousRate: null });
-    expect(rows[5]).toMatchObject({ count: 0, previousRate: 0 });
+    expect(buildBranchRows({ results_view: 2, cost_check: 1 })[2]).toMatchObject({
+      eventType: "cost_check",
+      count: 1,
+      resultsRate: 50,
+    });
   });
 
   it("요청 시점 렌더링 후 설정 안내 상태를 반환한다", async () => {
@@ -68,35 +77,20 @@ describe("관리자 퍼널", () => {
     expect(connection).toHaveBeenCalledOnce();
   });
 
-  it("DB 본문을 내려받지 않고 각 단계의 exact count를 조회한다", async () => {
-    const counts = new Map([
-      ["visit", 12],
-      ["start_click", 9],
-      ["questions_complete", 6],
-    ]);
-    const select = vi.fn();
-    const contains = vi.fn();
-    const eq = vi.fn();
-    const from = vi.fn(() => {
-      const query = {
-        select: (...args: unknown[]) => {
-          select(...args);
-          return query;
-        },
-        contains: (...args: unknown[]) => {
-          contains(...args);
-          return query;
-        },
-        eq: async (_column: string, eventType: string) => {
-          eq(_column, eventType);
-          return { count: counts.get(eventType) ?? 0, error: null };
-        },
-      };
-      return query;
+  it("SQL 집계 함수의 고유 journey 결과를 퍼널과 분기로 나눈다", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [
+        { event_type: "visit", journey_count: 12 },
+        { event_type: "start_click", journey_count: 9 },
+        { event_type: "questions_complete", journey_count: 6 },
+        { event_type: "results_view", journey_count: 4 },
+        { event_type: "outbound_click", journey_count: 2 },
+      ],
+      error: null,
     });
 
     vi.mocked(isSupabaseConfigured).mockReturnValue(true);
-    vi.mocked(supabaseAdmin).mockReturnValue({ from } as never);
+    vi.mocked(supabaseAdmin).mockReturnValue({ rpc } as never);
 
     const result = await loadAdminFunnel();
 
@@ -108,11 +102,9 @@ describe("관리자 퍼널", () => {
       { eventType: "start_click", count: 9, previousRate: 75 },
       { eventType: "questions_complete", count: 6 },
     ]);
-    expect(from).toHaveBeenCalledTimes(10);
-    expect(select).toHaveBeenCalledWith("id", { count: "exact", head: true });
-    expect(contains).toHaveBeenCalledOnce();
-    expect(contains).toHaveBeenCalledWith("payload", { entry: "questions" });
-    expect(eq).toHaveBeenCalledWith("event_type", "feedback_submit");
+    expect(result.branches.find((row) => row.eventType === "outbound_click"))
+      .toMatchObject({ count: 2, resultsRate: 50 });
+    expect(rpc).toHaveBeenCalledWith("admin_journey_event_counts");
   });
 });
 

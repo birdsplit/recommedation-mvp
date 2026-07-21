@@ -20,7 +20,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/"
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[16px] font-extrabold text-white shadow-cta"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-[16px] font-extrabold text-white shadow-cta"
         >
           홈으로 가기
           <ArrowRightIcon size={16} />

@@ -20,7 +20,7 @@ export function ProductStatusSelect({
 
   return (
     <form ref={formRef} action={action} className="min-w-0">
-      <label className="block text-[11px] font-bold text-faint" htmlFor={`status-${productId}`}>
+      <label className="block text-[13px] font-bold text-faint" htmlFor={`status-${productId}`}>
         상태 즉시 변경
       </label>
       <div className="mt-1 flex items-center gap-2">
@@ -33,7 +33,7 @@ export function ProductStatusSelect({
             setSubmitting(true);
             formRef.current?.requestSubmit();
           }}
-          className="min-h-10 min-w-0 flex-1 rounded-xl border border-[#E7DBC9] bg-white px-3 text-xs font-bold outline-none focus:border-coral-500"
+          className="min-h-10 min-w-0 flex-1 rounded-xl border border-[#E7DBC9] bg-white px-3 text-[13px] font-bold outline-none focus:border-coral-500"
         >
           {(Object.entries(PRODUCT_STATUS_LABELS) as [ProductStatus, string][]).map(
             ([value, label]) => (
@@ -43,7 +43,7 @@ export function ProductStatusSelect({
             )
           )}
         </select>
-        {submitting && <span className="text-[11px] text-sub">변경 중…</span>}
+        {submitting && <span className="text-[13px] text-sub">변경 중…</span>}
       </div>
       <button type="submit" className="sr-only">
         상태 변경

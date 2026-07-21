@@ -12,16 +12,52 @@ export type Dust = "high" | "medium" | "low";
 export type SelfAssembly = "easy" | "medium" | "hard" | "not_possible";
 export type InstallationService = "none" | "paid" | "included" | "unknown";
 export type DataConfidence = "confirmed" | "estimated";
+export type FieldConfidence = DataConfidence | "unknown";
+export type ProductAvailability =
+  | "in_stock"
+  | "out_of_stock"
+  | "preorder"
+  | "unknown";
+
+export interface ProductEvidenceSnapshot {
+  id: number;
+  field_group:
+    | "identity"
+    | "commercial"
+    | "delivery"
+    | "spec"
+    | "review"
+    | "policy"
+    | "catalog";
+  field_names: string[];
+  source_url: string;
+  confidence: FieldConfidence;
+  verified_at: string;
+  verified_by: string;
+  notes?: string | null;
+}
 
 /** products 테이블 행 (supabase/schema.sql과 1:1) */
 export interface Product {
   id: string;
+  /** 실카탈로그 행에만 존재하며 데모 fixture에서는 생략될 수 있다. */
+  internal_key?: string;
+  offer_id?: string;
+  variant_key?: string;
+  option_name?: string;
+  availability?: ProductAvailability;
+  source_url?: string;
+  evidence?: ProductEvidenceSnapshot[];
+  commercial_verified_at?: string;
+  spec_verified_at?: string;
   name: string;
   seller_name: string;
   seller_url: string;
   image_url: string | null;
   price: number;
   shipping_fee: number;
+  /** 이전 카탈로그 행에는 없을 수 있어 optional로 읽는다. */
+  shipping_fee_confidence?: FieldConfidence;
   installation_service: InstallationService;
   installation_fee: number | null;
   mattress_included: boolean;
@@ -51,10 +87,19 @@ export interface Product {
   assembly_tools: string | null;
   disassembly_ease: Level3 | null;
   review_risks: ReviewRisk[];
+  return_policy_summary?: string | null;
+  damage_process_summary?: string | null;
+  warranty_summary?: string | null;
+  review_sample_count?: number;
+  review_risk_counts?: Partial<Record<ReviewRisk, number>>;
+  review_verified_at?: string | null;
+  review_rechecked_count?: number;
   recommended_for: string | null;
   not_recommended_for: string | null;
   data_confidence: DataConfidence;
   source_note: string | null;
+  /** 레거시 DB 기본값과 실제 미확인 값을 구분하는 카탈로그 필드명 목록 */
+  unknown_fields?: string[];
   last_verified_at: string;
   status: ProductStatus;
   created_at: string;
@@ -69,13 +114,10 @@ export type StorageAnswer =
   | "closed"
   | "any";
 
-/** 질문 2 — 운반과 조립 (화면3) */
-export type CarryAnswer =
-  | "both_ok"
-  | "assembly_only" // 운반은 어렵지만 조립은 가능
-  | "carry_only" // 운반은 가능하지만 조립은 어려움
-  | "need_both" // 운반·조립 서비스 모두 필요
-  | "friend_help";
+/** 질문 2 — 운반과 조립을 각각 어떻게 해결할지 */
+export type AssistanceAnswer = "self" | "friend" | "service";
+export type CarryAnswer = AssistanceAnswer;
+export type AssemblyAnswer = AssistanceAnswer;
 
 /** 질문 3 — 배송 시기 (화면4) */
 export type DeliveryAnswer = "this_week" | "two_weeks" | "one_month" | "any";
@@ -87,6 +129,7 @@ export type Budget = 100000 | 200000 | 300000 | null;
 export interface Answers {
   storage: StorageAnswer;
   carry: CarryAnswer;
+  assembly: AssemblyAnswer;
   budget: Budget; // null = 상관없음/건너뜀
   priceBasis: PriceBasis;
   delivery: DeliveryAnswer;
@@ -111,12 +154,17 @@ export interface CostBreakdown {
   unknownParts: string[];
 }
 
+export type ConditionStatus = "met" | "unknown" | "not_met";
+
 /** 필수조건 충족표 한 행 (화면7 섹션 1) */
 export interface ConditionCheck {
-  key: "budget" | "delivery" | "storage" | "carry" | "size";
+  key: "budget" | "delivery" | "storage" | "carry" | "assembly" | "size";
   label: string;
-  pass: boolean;
+  status: ConditionStatus;
+  /** 추천 후보 필터와 충족 개수에 포함되는 사용자의 선택 조건인지 */
+  required: boolean;
   note?: string;
+  evidenceIds?: string[];
 }
 
 /** 이유/주의 — text는 문장, core는 최종 한 문장 조립용 짧은 명사구 */
@@ -129,12 +177,17 @@ export interface Reason {
 export interface Recommendation {
   product: Product;
   tier: Tier;
+  /** 선택한 필수조건 전체의 판정. size 같은 안내 항목은 제외한다. */
+  conditionStatus: ConditionStatus;
   /** 내부 정렬 전용 — UI에 숫자로 노출 금지 (기획서 화면6 표시 원칙) */
   score: number;
   cost: CostBreakdown;
   checks: ConditionCheck[];
   passCount: number;
   totalChecks: number;
+  unknownCount: number;
+  /** 동점 정렬용 내부 지표. UI에 정확도처럼 노출하지 않는다. */
+  dataCompleteness: number;
   prefCount: number;
   riskCount: number;
   fitReasons: Reason[]; // 항상 2개

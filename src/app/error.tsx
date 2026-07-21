@@ -17,7 +17,7 @@ export default function ErrorPage({
   }, [error]);
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-5 pb-16">
+    <main role="alert" className="flex min-h-dvh flex-col items-center justify-center px-5 pb-16">
       <div className="w-full rounded-[28px] bg-white p-8 text-center shadow-card">
         <p className="text-[38px]">😵</p>
         <h1 className="mt-2 text-[19px] font-extrabold">
@@ -31,7 +31,7 @@ export default function ErrorPage({
         <button
           type="button"
           onClick={() => reset()}
-          className="mt-6 w-full rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[16px] font-extrabold text-white shadow-cta"
+          className="mt-6 w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-[16px] font-extrabold text-white shadow-cta"
         >
           다시 시도하기
         </button>

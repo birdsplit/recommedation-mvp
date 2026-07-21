@@ -36,3 +36,23 @@ body {
   word-break: keep-all;
   -webkit-font-smoothing: antialiased;
 }
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-coral-700);
+  outline-offset: 3px;
+}
+
+:where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -735,7 +735,12 @@ export async function updateAdminProduct(
   assertRequiredPublicSource(values.status, values.source_note);
   const { data, error } = await supabaseAdmin()
     .from("products")
-    .update(values)
+    .update({
+      ...values,
+      // 개별 수정 화면의 단일 확인일을 상업 정보·고정 사양 확인일에 함께 반영한다.
+      commercial_verified_at: values.last_verified_at,
+      spec_verified_at: values.last_verified_at,
+    })
     .eq("id", id)
     .select("id")
     .maybeSingle();

@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
@@ -51,3 +53,11 @@ next-env.d.ts
 
 # local Vercel project link
 .vercel/
+
+# program binaries and user-owned notes (never stage)
+docs/*.pdf
+docs/*.hwp
+docs/recursive-dreaming-clover.md
+
+# generated research workbooks
+/outputs/

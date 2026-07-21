@@ -9,12 +9,12 @@ import { DELIVERY_BUCKET_DAYS } from "./filter";
 
 /** 사용자가 직접 조립할 수 있는가 (계획 기본값 4: 친구 도움 = 둘 다 가능 간주) */
 export function canAssemble(answers: Answers): boolean {
-  return ["both_ok", "assembly_only", "friend_help"].includes(answers.carry);
+  return answers.assembly === "self" || answers.assembly === "friend";
 }
 
 /** 조립 서비스를 쓸 사용자인가 */
 export function usesAssemblyService(answers: Answers): boolean {
-  return answers.carry === "carry_only" || answers.carry === "need_both";
+  return answers.assembly === "service";
 }
 
 export interface PrefHit {
@@ -29,27 +29,36 @@ export function preferencePoints(
   cost: CostBreakdown
 ): PrefHit[] {
   const hits: PrefHit[] = [];
+  const deliveryKnown = !p.unknown_fields?.some(
+    (field) => field === "delivery_days_min" || field === "delivery_days_max"
+  );
 
-  if (answers.delivery !== "any") {
+  if (answers.delivery !== "any" && deliveryKnown) {
     const limit = DELIVERY_BUCKET_DAYS[answers.delivery];
     if (p.delivery_days_max + 7 <= limit) {
       hits.push({ key: "delivery_margin", points: 2 });
     }
-    if (p.scheduled_delivery) {
+    if (
+      p.scheduled_delivery &&
+      !p.unknown_fields?.includes("scheduled_delivery")
+    ) {
       hits.push({ key: "scheduled_delivery", points: 1 });
     }
   }
-  if (answers.wantsMattress === true && p.mattress_included) {
+  if (
+    answers.wantsMattress === true &&
+    p.mattress_included &&
+    !p.unknown_fields?.includes("mattress_included")
+  ) {
     hits.push({ key: "mattress_included", points: 2 });
   }
-  if (p.has_outlet) hits.push({ key: "outlet", points: 1 });
-  if (p.has_headboard) hits.push({ key: "headboard", points: 1 });
   if (p.disassembly_ease === "easy") {
     hits.push({ key: "disassembly", points: 1 });
   }
   if (
     answers.budget !== null &&
     answers.priceBasis === "total" &&
+    cost.unknownParts.length === 0 &&
     cost.knownTotal <= answers.budget * 0.8
   ) {
     hits.push({ key: "budget_margin", points: 1 });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   answersQuery,
+  ASSEMBLY_ANSWER_LABELS,
   budgetLabel,
   CARRY_ANSWER_LABELS,
   conflictWarnings,
@@ -10,8 +11,9 @@ import {
   parseAnswers,
   STORAGE_ANSWER_LABELS,
 } from "@/lib/reco/answers";
-import { ArrowRightIcon, BackIcon, EditIcon, WarnIcon } from "@/components/icons";
+import { BackIcon, EditIcon, WarnIcon } from "@/components/icons";
 import { EventOnMount } from "@/components/Track";
+import { CreateRecommendationButton } from "@/components/CreateRecommendationButton";
 
 /** 화면5 — 조건 요약 */
 export default async function SummaryPage({
@@ -33,8 +35,13 @@ export default async function SummaryPage({
       editHref: `/q/1?${query}`,
     },
     {
-      label: "운반·조립",
+      label: "집 안 운반",
       value: CARRY_ANSWER_LABELS[answers.carry],
+      editHref: `/q/2?${query}`,
+    },
+    {
+      label: "조립",
+      value: ASSEMBLY_ANSWER_LABELS[answers.assembly],
       editHref: `/q/2?${query}`,
     },
     {
@@ -86,12 +93,12 @@ export default async function SummaryPage({
             className="flex items-center justify-between rounded-3xl bg-white px-5 py-4 shadow-soft"
           >
             <div>
-              <p className="text-[11.5px] font-bold text-faint">{row.label}</p>
+              <p className="text-[13px] font-bold text-faint">{row.label}</p>
               <p className="mt-0.5 text-[15px] font-bold">{row.value}</p>
             </div>
             <Link
               href={row.editHref}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#F0DACD] px-3 py-1.5 text-[12px] font-bold text-coral-700"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#D9BDAE] px-3 py-1.5 text-[13px] font-bold text-coral-700"
             >
               <EditIcon size={11} />
               수정
@@ -111,13 +118,7 @@ export default async function SummaryPage({
       ))}
 
       <div className="mt-auto pt-8">
-        <Link
-          href={`/results?${query}`}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-[18px] text-[18px] font-extrabold text-white shadow-cta"
-        >
-          이 조건으로 3개 보기
-          <ArrowRightIcon size={18} />
-        </Link>
+        <CreateRecommendationButton answers={answers} />
       </div>
     </main>
   );

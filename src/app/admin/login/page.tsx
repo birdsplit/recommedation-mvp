@@ -33,7 +33,7 @@ export default async function AdminLoginPage({
   return (
     <main className="flex min-h-dvh items-center px-5 py-12">
       <section className="w-full rounded-[28px] bg-white p-6 shadow-card">
-        <p className="text-[12px] font-extrabold tracking-[0.12em] text-coral-600">
+        <p className="text-[13px] font-extrabold tracking-[0.12em] text-coral-600">
           ADMIN
         </p>
         <h1 className="mt-2 text-[24px] font-extrabold">관리자 로그인</h1>
@@ -77,7 +77,7 @@ export default async function AdminLoginPage({
           />
           <button
             type="submit"
-            className="mt-5 w-full rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[16px] font-extrabold text-white shadow-cta"
+            className="mt-5 w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-[16px] font-extrabold text-white shadow-cta"
           >
             로그인
           </button>

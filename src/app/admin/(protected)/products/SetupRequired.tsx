@@ -11,7 +11,7 @@ export function ProductsSetupRequired() {
         관리자 화면에서는 시드 폴백을 수정하지 않습니다. 아래 환경변수를 설정하고
         SQL Editor에서 스키마와 시드를 적용하면 등록·수정 기능이 활성화됩니다.
       </p>
-      <ul className="mt-4 space-y-1 rounded-2xl bg-white/80 px-4 py-3 font-mono text-xs text-ink">
+      <ul className="mt-4 space-y-1 rounded-2xl bg-white/80 px-4 py-3 font-mono text-[13px] text-ink">
         <li>SUPABASE_URL</li>
         <li>SUPABASE_SERVICE_ROLE_KEY</li>
         <li>supabase/schema.sql → supabase/seed.sql</li>

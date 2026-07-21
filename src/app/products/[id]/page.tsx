@@ -3,14 +3,16 @@ import { notFound } from "next/navigation";
 import { answersQuery, parseAnswers } from "@/lib/reco/answers";
 import { evaluateProduct } from "@/lib/reco/engine";
 import { getProductById } from "@/lib/products";
+import { getRecommendationRun } from "@/lib/recommendation-runs";
+import { isDemoDataMode } from "@/lib/data-mode";
 import { REVIEW_RISKS } from "@/lib/constants";
-import type { Level3 } from "@/lib/reco/types";
+import { formatDateDot } from "@/lib/format";
+import type { Level3, Recommendation } from "@/lib/reco/types";
 import { TrustLine } from "@/components/ProductCard";
 import { CostBreakdownBlock } from "@/components/CostBreakdownBlock";
 import { TierBadge } from "@/components/TierBadge";
 import { BedPlaceholder } from "@/components/BedIllustration";
 import { EventOnMount } from "@/components/Track";
-import { CompareButton } from "@/components/CompareButton";
 import {
   SellerLinkButton,
 } from "@/components/SellerLinkButton";
@@ -30,6 +32,15 @@ const DISASSEMBLY_LABELS: Record<Level3, string> = {
   hard: "어려움 — 이사가 잦다면 부담돼요",
 };
 
+const EVIDENCE_LABELS: Record<string, string> = {
+  commercial: "가격·재고 근거",
+  delivery: "배송·설치 근거",
+  spec: "규격·구조 근거",
+  policy: "반품·보증 근거",
+  review: "리뷰 표본 근거",
+  catalog: "상품 정보 근거",
+};
+
 function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
@@ -44,19 +55,35 @@ export default async function ProductDetailPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-
-  const product = await getProductById(id);
-  if (!product || product.status !== "public") notFound();
-
-  const answers = parseAnswers(sp);
+  const runIdRaw = first(sp.run);
+  const storedRun = runIdRaw ? await getRecommendationRun(runIdRaw) : null;
+  const answers = storedRun?.answers ?? parseAnswers(sp);
   const query = answersQuery(answers);
   const rankRaw = first(sp.rank);
   const rank =
     rankRaw && /^[1-9]\d*$/.test(rankRaw) ? Number(rankRaw) : undefined;
 
-  const rec = evaluateProduct(product, answers);
+  let rec: Recommendation;
+  if (storedRun) {
+    const snapshot = storedRun.result.candidates.find(
+      (candidate) => candidate.product.id === id
+    );
+    if (!snapshot) notFound();
+    rec = snapshot;
+  } else {
+    const product = await getProductById(id);
+    if (!product || product.status !== "public") notFound();
+    rec = evaluateProduct(product, answers);
+  }
   const p = rec.product;
-  const failedChecks = rec.checks.filter((c) => !c.pass);
+  const runId = storedRun?.id ?? null;
+  const demoMode = isDemoDataMode();
+  const failedChecks = rec.checks.filter(
+    (check) => check.required && check.status === "not_met"
+  );
+  const unknownChecks = rec.checks.filter(
+    (check) => check.status === "unknown"
+  );
   const mismatchReasons = [
     ...failedChecks.map((c) =>
       c.note ? `${c.label} — ${c.note}` : `${c.label} 조건을 충족하지 못해요.`
@@ -70,13 +97,14 @@ export default async function ProductDetailPage({
     <main className="min-h-dvh pb-12">
       <EventOnMount
         type="product_detail_view"
+        runId={runId}
         payload={{ productId: p.id, tier: rec.tier, rank: rank ?? null }}
       />
 
       {/* 상단 바 */}
       <div className="flex items-center gap-3 px-5 pt-6">
         <Link
-          href={`/results?${query}`}
+          href={runId ? `/results/${runId}` : `/results?${query}`}
           aria-label="추천 결과로 돌아가기"
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-soft"
         >
@@ -102,6 +130,24 @@ export default async function ProductDetailPage({
               >
                 <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-coral-700" />
                 {c.label} 조건을 충족하지 못해요
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {rec.conditionStatus === "unknown" && (
+        <div className="mx-5 mt-4 rounded-[28px] bg-honey-50 p-5">
+          <div className="flex items-center gap-2">
+            <WarnIcon size={18} className="shrink-0 text-honey-700" />
+            <p className="text-[15px] font-extrabold text-honey-700">
+              확인이 필요한 후보예요
+            </p>
+          </div>
+          <ul className="mt-2.5 space-y-1.5">
+            {unknownChecks.map((check) => (
+              <li key={check.key} className="text-[13px] font-semibold leading-relaxed text-honey-700">
+                ? {check.label}{check.note ? ` · ${check.note}` : ""}
               </li>
             ))}
           </ul>
@@ -137,10 +183,15 @@ export default async function ProductDetailPage({
         <ul className="mt-3 space-y-3">
           {rec.checks.map((c) => (
             <li key={c.key} className="flex gap-2.5">
-              {c.pass ? (
+              {c.status === "met" ? (
                 <CheckCircleIcon
                   size={18}
                   className="mt-px shrink-0 text-leaf-700"
+                />
+              ) : c.status === "unknown" ? (
+                <WarnIcon
+                  size={18}
+                  className="mt-px shrink-0 text-honey-700"
                 />
               ) : (
                 <XCircleIcon
@@ -151,13 +202,24 @@ export default async function ProductDetailPage({
               <div>
                 <p
                   className={`text-[14px] font-bold leading-snug ${
-                    c.pass ? "text-ink" : "text-coral-700"
+                    c.status === "met"
+                      ? "text-ink"
+                      : c.status === "unknown"
+                        ? "text-honey-700"
+                        : "text-coral-700"
                   }`}
                 >
+                  <span className="mr-1 font-extrabold">
+                    {c.status === "met"
+                      ? "충족 ·"
+                      : c.status === "unknown"
+                        ? "미확인 ·"
+                        : "불충족 ·"}
+                  </span>
                   {c.label}
                 </p>
                 {c.note && (
-                  <p className="mt-0.5 text-[12.5px] leading-snug text-faint">
+                  <p className="mt-0.5 text-[13px] leading-snug text-faint">
                     {c.note}
                   </p>
                 )}
@@ -239,23 +301,57 @@ export default async function ProductDetailPage({
         <CostBreakdownBlock rec={rec} />
       </section>
 
-      {/* 7. 리뷰에서 반복된 리스크 */}
+      {/* 7. 리뷰 표본과 반복 리스크 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
-        <h3 className="text-[14px] font-extrabold">리뷰에서 반복된 리스크</h3>
-        {p.review_risks.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {p.review_risks.map((risk) => (
-              <span
-                key={risk}
-                className="rounded-full bg-honey-50 px-3 py-1.5 text-[12.5px] font-bold text-honey-700"
-              >
-                {REVIEW_RISKS[risk]}
-              </span>
-            ))}
-          </div>
+        <h3 className="text-[14px] font-extrabold">리뷰 표본과 반복 리스크</h3>
+        {(p.review_sample_count ?? 0) > 0 ? (
+          <>
+            <p className="mt-2 text-[13px] leading-relaxed text-sub">
+              표본 {p.review_sample_count}개 · 재검수 {p.review_rechecked_count ?? 0}개
+              {p.review_verified_at
+                ? ` · ${formatDateDot(p.review_verified_at)} 확인`
+                : " · 확인일 미기록"}
+            </p>
+            {p.review_risks.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {p.review_risks.map((risk) => (
+                  <span
+                    key={risk}
+                    className="rounded-full bg-honey-50 px-3 py-1.5 text-[13px] font-bold text-honey-700"
+                  >
+                    {REVIEW_RISKS[risk]} · {p.review_risk_counts?.[risk] ?? 0}건
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[13.5px] text-sub">
+                이 표본에서 같은 위험이 2건 이상 반복되지는 않았어요.
+              </p>
+            )}
+          </>
         ) : (
-          <p className="mt-2 text-[13.5px] text-sub">반복 리스크 없음</p>
+          <p className="mt-2 text-[13.5px] text-honey-700">
+            리뷰 위험 표본은 아직 확인되지 않았어요.
+          </p>
         )}
+      </section>
+
+      <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-soft">
+        <h3 className="text-[14px] font-extrabold">반품·파손·보증 확인</h3>
+        <dl className="mt-3 space-y-3 text-[13px] leading-relaxed">
+          <div>
+            <dt className="font-extrabold text-sub">반품·청약철회</dt>
+            <dd className="mt-0.5">{p.return_policy_summary ?? "판매처 확인 필요"}</dd>
+          </div>
+          <div>
+            <dt className="font-extrabold text-sub">배송 파손 절차</dt>
+            <dd className="mt-0.5">{p.damage_process_summary ?? "판매처 확인 필요"}</dd>
+          </div>
+          <div>
+            <dt className="font-extrabold text-sub">보증·AS</dt>
+            <dd className="mt-0.5">{p.warranty_summary ?? "판매처 확인 필요"}</dd>
+          </div>
+        </dl>
       </section>
 
       {/* 8. 배송·설치·운반 */}
@@ -271,13 +367,21 @@ export default async function ProductDetailPage({
           <div className="flex justify-between gap-3">
             <dt className="shrink-0 text-sub">지정일 배송</dt>
             <dd className="text-right font-semibold">
-              {p.scheduled_delivery ? "가능" : "안 됨"}
+              {p.unknown_fields?.includes("scheduled_delivery")
+                ? "미확인"
+                : p.scheduled_delivery
+                  ? "가능"
+                  : "안 됨"}
             </dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="shrink-0 text-sub">운반 서비스</dt>
             <dd className="text-right font-semibold">
-              {p.carry_service_available ? "제공" : "없음 (문 앞 배송 기준)"}
+              {p.unknown_fields?.includes("carry_service_available")
+                ? "미확인"
+                : p.carry_service_available
+                  ? "제공"
+                  : "없음 (문 앞 배송 기준)"}
             </dd>
           </div>
           <div className="flex justify-between gap-3">
@@ -300,6 +404,35 @@ export default async function ProductDetailPage({
 
       {/* 9. 출처·확인일 */}
       <TrustLine rec={rec} />
+      <div className="mx-5 mt-3 space-y-2">
+        {(p.evidence?.length ?? 0) > 0 ? (
+          p.evidence!.map((evidence) => (
+            <SellerLinkButton
+              key={evidence.id}
+              productId={p.id}
+              evidenceId={evidence.id}
+              via="source"
+              runId={runId}
+              label={EVIDENCE_LABELS[evidence.field_group] ?? "정보 출처 열람"}
+              disabled={demoMode}
+              checkItems={[
+                `${evidence.verified_at}에 ${evidence.verified_by}가 확인한 근거예요.`,
+                "화면의 옵션명과 판매처 옵션이 같은지 확인해 주세요.",
+              ]}
+            />
+          ))
+        ) : (
+          <SellerLinkButton
+            productId={p.id}
+            via="source"
+            runId={runId}
+            label="정보 출처 열람"
+            disabled={demoMode}
+            disabledReason="예시 데이터에는 실제 출처 링크가 없어요. 실상품 검수가 끝나면 열립니다."
+            checkItems={["화면의 옵션명과 판매처 옵션이 같은지 확인해 주세요."]}
+          />
+        )}
+      </div>
 
       {/* 10. 최종 판단 */}
       <section className="mx-5 mt-4 rounded-[28px] bg-white p-5 shadow-card">
@@ -316,28 +449,26 @@ export default async function ProductDetailPage({
 
       {/* 행동 버튼 (기획서 화면7 순서) */}
       <div className="mx-5 mt-6 space-y-2.5">
-        <CompareButton
-          productId={p.id}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-peach-200 bg-white py-3.5 text-[15px] font-bold text-coral-700"
-        />
         <Link
-          href={`/cost-check/${p.id}?${query}`}
+          href={`/cost-check/${p.id}?${query}${runId ? `&run=${runId}` : ""}`}
           className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-coral-400 bg-white py-3.5 text-[15px] font-extrabold text-coral-600"
         >
-          우리 집까지 총비용 확인
+          추가비용 가능성 확인
           <ArrowRightIcon size={15} className="shrink-0" />
         </Link>
         <SellerLinkButton
           productId={p.id}
           rank={rank}
           via="detail"
+          runId={runId}
+          disabled={demoMode}
           label="판매처에서 자세히 보기"
           checkItems={buildCheckItems({
             unknownParts: rec.cost.unknownParts,
             scheduledDelivery: p.scheduled_delivery,
             hasExtraCostRisk: p.review_risks.includes("extra_cost"),
           })}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] py-4 text-[16px] font-extrabold text-white shadow-cta"
+          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-4 text-[16px] font-extrabold text-white shadow-cta"
         />
       </div>
     </main>

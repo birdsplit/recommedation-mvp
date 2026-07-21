@@ -3,24 +3,27 @@ import "server-only";
 import { connection } from "next/server";
 import { isSupabaseConfigured, supabaseAdmin } from "@/lib/supabase";
 
-/**
- * 관리자 대시보드에서 보는 핵심 검증 퍼널.
- * question_answer는 한 세션에서 세 번 발생하므로 완료 이벤트만 퍼널에 포함한다.
- */
+/** 결과 도달 전은 순차 퍼널, 결과 이후는 독립적인 분기 행동으로 계산한다. */
 export const FUNNEL_STAGES = [
   { eventType: "visit", label: "서비스 방문" },
   { eventType: "start_click", label: "질문 시작" },
   { eventType: "questions_complete", label: "질문 완료" },
   { eventType: "summary_view", label: "조건 요약 확인" },
   { eventType: "results_view", label: "추천 결과 확인" },
+] as const;
+
+export const BRANCH_ACTIONS = [
   { eventType: "product_detail_view", label: "상품 상세 열람" },
-  { eventType: "compare_add", label: "비교함 추가" },
-  { eventType: "cost_check", label: "총비용 확인" },
+  { eventType: "compare_add", label: "상세 비교" },
+  { eventType: "cost_check", label: "추가비용 확인" },
   { eventType: "outbound_click", label: "판매처 이동" },
+  { eventType: "source_open", label: "정보 출처 열람" },
   { eventType: "feedback_submit", label: "피드백 제출" },
 ] as const;
 
 export type FunnelEventType = (typeof FUNNEL_STAGES)[number]["eventType"];
+export type BranchEventType = (typeof BRANCH_ACTIONS)[number]["eventType"];
+type MetricEventType = FunnelEventType | BranchEventType;
 
 export interface FunnelRow {
   eventType: FunnelEventType;
@@ -30,12 +33,25 @@ export interface FunnelRow {
   previousRate: number | null;
 }
 
+export interface BranchRow {
+  eventType: BranchEventType;
+  label: string;
+  count: number;
+  /** 결과를 본 고유 journey 중 이 행동을 한 비율. */
+  resultsRate: number | null;
+}
+
 export type FunnelLoadState =
   | { status: "setup" }
   | { status: "error" }
-  | { status: "ready"; rows: FunnelRow[]; isEmpty: boolean };
+  | {
+      status: "ready";
+      rows: FunnelRow[];
+      branches: BranchRow[];
+      isEmpty: boolean;
+    };
 
-type FunnelCounts = Partial<Record<FunnelEventType, number>>;
+type FunnelCounts = Partial<Record<MetricEventType, number>>;
 
 function safeCount(value: number | null | undefined): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0
@@ -66,45 +82,54 @@ export function buildFunnelRows(counts: FunnelCounts): FunnelRow[] {
   });
 }
 
-/**
- * 이벤트 행 전체를 내려받지 않고 단계별 exact count만 조회한다.
- * 반복 열람/클릭도 검증 행동이므로 이 화면의 수치는 고유 사용자 수가 아닌 이벤트 수다.
- */
+export function buildBranchRows(counts: FunnelCounts): BranchRow[] {
+  const resultsCount = safeCount(counts.results_view);
+  return BRANCH_ACTIONS.map((action) => {
+    const count = safeCount(counts[action.eventType]);
+    return {
+      ...action,
+      count,
+      resultsRate:
+        resultsCount === 0
+          ? null
+          : Math.round((count / resultsCount) * 1_000) / 10,
+    };
+  });
+}
+
+/** SQL 함수가 테스트 데이터를 제외하고 event_type별 고유 journey를 집계한다. */
 export async function loadAdminFunnel(): Promise<FunnelLoadState> {
   await connection();
 
   if (!isSupabaseConfigured()) return { status: "setup" };
 
   try {
-    const db = supabaseAdmin();
-    const results = await Promise.all(
-      FUNNEL_STAGES.map((stage) => {
-        const query = db
-          .from("events")
-          .select("id", { count: "exact", head: true });
-
-        // 같은 타입으로 기록되는 "이미 후보가 있어요" 검증 링크는 질문 시작이 아니다.
-        if (stage.eventType === "start_click") {
-          return query
-            .contains("payload", { entry: "questions" })
-            .eq("event_type", stage.eventType);
-        }
-
-        return query.eq("event_type", stage.eventType);
-      })
+    const { data, error } = await supabaseAdmin().rpc(
+      "admin_journey_event_counts"
     );
-
+    if (error) throw error;
     const counts: FunnelCounts = {};
-    for (const [index, result] of results.entries()) {
-      if (result.error) throw result.error;
-      counts[FUNNEL_STAGES[index].eventType] = result.count ?? 0;
+    for (const row of (data ?? []) as Array<{
+      event_type: string;
+      journey_count: number | string;
+    }>) {
+      const known = [...FUNNEL_STAGES, ...BRANCH_ACTIONS].some(
+        (metric) => metric.eventType === row.event_type
+      );
+      if (known) {
+        counts[row.event_type as MetricEventType] = Number(row.journey_count);
+      }
     }
 
     const rows = buildFunnelRows(counts);
+    const branches = buildBranchRows(counts);
     return {
       status: "ready",
       rows,
-      isEmpty: rows.every((row) => row.count === 0),
+      branches,
+      isEmpty:
+        rows.every((row) => row.count === 0) &&
+        branches.every((row) => row.count === 0),
     };
   } catch (error) {
     console.error("관리자 퍼널 조회 실패:", error);
@@ -152,12 +177,18 @@ function jsonValue(value: unknown): string {
 
 const EXPORT_DEFINITIONS: Record<ExportKind, ExportDefinition> = {
   events: {
-    select: "id,session_id,event_type,payload,created_at",
+    select:
+      "id,session_id,journey_id,run_id,event_version,cohort,is_test,event_type,payload,created_at",
     asciiName: "modoo-events",
     koreanName: "모두의침대-사용자이벤트",
     columns: [
       { header: "이벤트 ID", value: (row) => row.id as CsvValue },
       { header: "익명 세션 ID", value: (row) => row.session_id as CsvValue },
+      { header: "여정 ID", value: (row) => row.journey_id as CsvValue },
+      { header: "추천 실행 ID", value: (row) => row.run_id as CsvValue },
+      { header: "이벤트 버전", value: (row) => row.event_version as CsvValue },
+      { header: "코호트", value: (row) => row.cohort as CsvValue },
+      { header: "테스트", value: (row) => koreanBoolean(row.is_test) },
       { header: "이벤트 유형", value: (row) => row.event_type as CsvValue },
       {
         header: "이벤트 상세(JSON)",
@@ -168,12 +199,14 @@ const EXPORT_DEFINITIONS: Record<ExportKind, ExportDefinition> = {
   },
   feedback: {
     select:
-      "id,session_id,q_time_saved,q_conditions_reflected,q_reasons_helpful,q_found_candidate,q_would_reuse,q_worst_question,chosen_product_id,post_purchase_optin,created_at",
+      "id,session_id,journey_id,run_id,q_time_saved,q_conditions_reflected,q_reasons_helpful,q_found_candidate,q_would_reuse,q_worst_question,chosen_product_id,post_purchase_optin,created_at",
     asciiName: "modoo-feedback",
     koreanName: "모두의침대-피드백",
     columns: [
       { header: "피드백 ID", value: (row) => row.id as CsvValue },
       { header: "익명 세션 ID", value: (row) => row.session_id as CsvValue },
+      { header: "여정 ID", value: (row) => row.journey_id as CsvValue },
+      { header: "추천 실행 ID", value: (row) => row.run_id as CsvValue },
       {
         header: "시간 단축 (1~5)",
         value: (row) => row.q_time_saved as CsvValue,

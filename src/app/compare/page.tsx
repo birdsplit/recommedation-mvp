@@ -144,7 +144,7 @@ function CompareContent() {
     content = (
       <>
         <CompareTable recs={recs} query={query} onRemove={remove} />
-        <p className="mt-3 px-6 text-[11.5px] font-medium leading-relaxed text-faint">
+        <p className="mt-3 px-6 text-[13px] font-medium leading-relaxed text-faint">
           🍑 &ldquo;차이&rdquo; 표시와 살구색 줄은 상품마다 값이 다른
           항목이에요. &ldquo;+별도&rdquo;는 판매처에서 확인이 필요한 비용이
           남아 있다는 뜻이에요.
@@ -165,7 +165,7 @@ function CompareContent() {
           <BackIcon size={18} />
         </Link>
         <h1 className="text-[18px] font-extrabold">비교함</h1>
-        <span className="ml-auto rounded-full bg-white px-3 py-1.5 text-[12.5px] font-extrabold text-coral-700 shadow-soft">
+        <span className="ml-auto rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold text-coral-700 shadow-soft">
           {ids.length}/{COMPARE_MAX}
         </span>
       </div>
@@ -177,7 +177,7 @@ function CompareContent() {
 
 function MissingConditionsCard() {
   return (
-    <div className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
+    <div role="status" className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
       <p className="text-[38px]">🧭</p>
       <h2 className="mt-2 text-[18px] font-extrabold">
         비교할 생활조건을 다시 알려주세요
@@ -188,7 +188,7 @@ function MissingConditionsCard() {
       </p>
       <Link
         href="/q/1"
-        className="mt-5 inline-block rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
+        className="mt-5 inline-block rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
       >
         생활조건 다시 입력하기
       </Link>
@@ -198,7 +198,7 @@ function MissingConditionsCard() {
 
 function EmptyCard({ resultsHref }: { resultsHref: string }) {
   return (
-    <div className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
+    <div role="status" className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
       <p className="text-[38px]">🛏️</p>
       <h2 className="mt-2 text-[18px] font-extrabold">비교함이 비어 있어요</h2>
       <p className="mt-2 text-[13.5px] leading-relaxed text-sub">
@@ -207,7 +207,7 @@ function EmptyCard({ resultsHref }: { resultsHref: string }) {
       </p>
       <Link
         href={resultsHref}
-        className="mt-5 inline-block rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
+        className="mt-5 inline-block rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
       >
         추천 결과 보러 가기
       </Link>
@@ -217,7 +217,7 @@ function EmptyCard({ resultsHref }: { resultsHref: string }) {
 
 function ErrorCard({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
+    <div role="alert" className="mx-5 mt-6 rounded-[28px] bg-white p-8 text-center shadow-card">
       <p className="text-[34px]">😢</p>
       <h2 className="mt-2 text-[17px] font-extrabold">
         상품 정보를 불러오지 못했어요
@@ -229,7 +229,7 @@ function ErrorCard({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="mt-5 rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
+        className="mt-5 rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] px-8 py-3.5 text-[15px] font-extrabold text-white shadow-cta"
       >
         다시 시도
       </button>
@@ -248,7 +248,12 @@ function CompareTable({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="mt-4 ml-5 overflow-x-auto rounded-l-[28px] bg-white py-4 pr-4 shadow-card">
+    <div
+      className="mt-4 ml-5 overflow-x-auto rounded-l-[28px] bg-white py-4 pr-4 shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9B382F]"
+      role="region"
+      aria-label="선택한 상품 비교표. 좌우로 스크롤해 모든 상품을 확인할 수 있습니다."
+      tabIndex={0}
+    >
       <table className="w-full border-collapse">
         <thead>
           <tr>
@@ -266,12 +271,12 @@ function CompareTable({
                   className="min-w-[136px] max-w-[160px] px-1.5 pb-3 text-left align-top font-normal"
                 >
                   {rec.tier === "not_fit" && (
-                    <span className="mb-1.5 inline-block rounded-full bg-coral-600 px-2.5 py-1 text-[10.5px] font-extrabold text-white">
+                    <span className="mb-1.5 inline-block rounded-full bg-coral-700 px-2.5 py-1 text-[13px] font-extrabold text-white">
                       내 필수조건 미충족
                     </span>
                   )}
                   <div className="flex items-start justify-between gap-1">
-                    <p className="text-[12.5px] font-extrabold leading-snug">
+                    <p className="text-[13px] font-extrabold leading-snug">
                       {p.name}
                     </p>
                     <button
@@ -288,7 +293,7 @@ function CompareTable({
                   </div>
                   <Link
                     href={`/products/${p.id}${query ? `?${query}` : ""}`}
-                    className="mt-2 flex items-center justify-center rounded-full border-2 border-peach-200 bg-white py-1.5 text-[11.5px] font-bold text-coral-700"
+                    className="mt-2 flex items-center justify-center rounded-full border-2 border-peach-200 bg-white py-1.5 text-[13px] font-bold text-coral-700"
                   >
                     자세히 보기
                   </Link>
@@ -300,11 +305,11 @@ function CompareTable({
                       scheduledDelivery: p.scheduled_delivery,
                       hasExtraCostRisk: p.review_risks.includes("extra_cost"),
                     })}
-                    className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-full bg-[#F4EDE3] py-1.5 text-[11.5px] font-bold text-[#4A4038]"
+                    className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-full bg-[#F4EDE3] py-1.5 text-[13px] font-bold text-[#4A4038]"
                   />
                   <Link
                     href={`/feedback?${feedbackParams.toString()}`}
-                    className="mt-1.5 flex items-center justify-center rounded-full bg-coral-600 py-1.5 text-[11.5px] font-extrabold text-white"
+                    className="mt-1.5 flex items-center justify-center rounded-full bg-coral-700 py-1.5 text-[13px] font-extrabold text-white"
                   >
                     이 상품 선택
                   </Link>
@@ -323,7 +328,7 @@ function CompareTable({
               <tr key={row.label}>
                 <th
                   scope="row"
-                  className={`sticky left-0 z-10 border-t border-[#F6EEE4] py-2.5 pr-2 pl-4 text-left align-top text-[11.5px] font-bold whitespace-nowrap text-faint ${bg}`}
+                  className={`sticky left-0 z-10 border-t border-[#F6EEE4] py-2.5 pr-2 pl-4 text-left align-top text-[13px] font-bold whitespace-nowrap text-faint ${bg}`}
                 >
                   <span className="flex items-center gap-1.5">
                     {row.label}
@@ -337,7 +342,7 @@ function CompareTable({
                 {recs.map((rec) => (
                   <td
                     key={rec.product.id}
-                    className={`border-t border-[#F6EEE4] px-1.5 py-2.5 align-top text-[12.5px] leading-snug font-semibold ${
+                    className={`border-t border-[#F6EEE4] px-1.5 py-2.5 align-top text-[13px] leading-snug font-semibold ${
                       differs ? "bg-peach-50" : ""
                     }`}
                   >

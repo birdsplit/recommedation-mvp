@@ -52,9 +52,9 @@ function FormSection({
   return (
     <fieldset className="rounded-3xl bg-white p-5 shadow-card">
       <legend className="sr-only">{title}</legend>
-      <p className="text-[11px] font-extrabold tracking-wide text-coral-600">{eyebrow}</p>
+      <p className="text-[13px] font-extrabold tracking-wide text-coral-600">{eyebrow}</p>
       <h2 className="mt-1 text-lg font-extrabold">{title}</h2>
-      {description && <p className="mt-1 text-xs leading-5 text-sub">{description}</p>}
+      {description && <p className="mt-1 text-[13px] leading-5 text-sub">{description}</p>}
       <div className="mt-5 space-y-4">{children}</div>
     </fieldset>
   );
@@ -75,13 +75,13 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={name} className="text-xs font-extrabold text-ink">
+      <label htmlFor={name} className="text-[13px] font-extrabold text-ink">
         {label}
       </label>
       {children}
-      {hint && !error && <p className="mt-1.5 text-[11px] leading-4 text-faint">{hint}</p>}
+      {hint && !error && <p className="mt-1.5 text-[13px] leading-5 text-faint">{hint}</p>}
       {error && (
-        <p id={`${name}-error`} className="mt-1.5 text-xs font-semibold text-red-700">
+        <p id={`${name}-error`} className="mt-1.5 text-[13px] font-semibold text-red-700">
           {error}
         </p>
       )}
@@ -230,12 +230,12 @@ function CheckField({
           className="mt-0.5 size-4 accent-coral-600"
         />
         <span>
-          <span className="block text-xs font-extrabold">{label}</span>
-          {description && <span className="mt-0.5 block text-[11px] text-sub">{description}</span>}
+          <span className="block text-[13px] font-extrabold">{label}</span>
+          {description && <span className="mt-0.5 block text-[13px] text-sub">{description}</span>}
         </span>
       </label>
       {error && (
-        <p id={`${name}-error`} className="mt-1.5 text-xs font-semibold text-red-700">
+        <p id={`${name}-error`} className="mt-1.5 text-[13px] font-semibold text-red-700">
           {error}
         </p>
       )}
@@ -288,7 +288,7 @@ export function ProductForm({
   return (
     <form action={formAction} className="space-y-4" noValidate>
       {metadata && (
-        <section className="rounded-2xl bg-white px-4 py-3 text-[11px] leading-5 text-faint shadow-soft">
+        <section className="rounded-2xl bg-white px-4 py-3 text-[13px] leading-5 text-faint shadow-soft">
           <p className="break-all"><strong className="text-sub">ID</strong> {metadata.id}</p>
           <p><strong className="text-sub">등록</strong> {metadata.createdAt}</p>
           <p><strong className="text-sub">수정</strong> {metadata.updatedAt}</p>
@@ -302,7 +302,7 @@ export function ProductForm({
         >
           {state.message}
           {Object.keys(state.fieldErrors).length > 0 && (
-            <span className="mt-1 block text-xs font-medium">
+            <span className="mt-1 block text-[13px] font-medium">
               표시된 항목을 고친 뒤 다시 저장해 주세요.
             </span>
           )}
@@ -623,7 +623,7 @@ export function ProductForm({
           {Object.entries(REVIEW_RISKS).map(([risk, label]) => (
             <label
               key={risk}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-2xl border border-[#E7DBC9] px-3 py-2 text-xs font-bold"
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-2xl border border-[#E7DBC9] px-3 py-2 text-[13px] font-bold"
             >
               <input
                 type="checkbox"
@@ -639,7 +639,7 @@ export function ProductForm({
           ))}
         </div>
         {error("review_risks") && (
-          <p className="text-xs font-semibold text-red-700">{error("review_risks")}</p>
+          <p className="text-[13px] font-semibold text-red-700">{error("review_risks")}</p>
         )}
       </FormSection>
 
@@ -695,7 +695,7 @@ export function ProductForm({
                 setMaximumVerifiedDate(currentToday);
                 setVerifiedDate(currentToday);
               }}
-              className="min-h-11 shrink-0 rounded-xl bg-peach-50 px-3 text-xs font-extrabold text-coral-700"
+              className="min-h-11 shrink-0 rounded-xl bg-peach-50 px-3 text-[13px] font-extrabold text-coral-700"
             >
               오늘로 확인일 갱신
             </button>
@@ -707,7 +707,7 @@ export function ProductForm({
         <button
           type="submit"
           disabled={pending}
-          className="min-h-13 w-full rounded-full bg-gradient-to-r from-[#F95B36] to-[#EE4E26] px-6 text-sm font-extrabold text-white shadow-cta disabled:cursor-wait disabled:opacity-60"
+          className="min-h-13 w-full rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] px-6 text-sm font-extrabold text-white shadow-cta disabled:cursor-wait disabled:opacity-60"
         >
           {pending
             ? "저장 중…"

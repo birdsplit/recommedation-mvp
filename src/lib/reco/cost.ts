@@ -7,12 +7,19 @@ import type { Answers, CostBreakdown, Product } from "./types";
 
 /** 사용자의 Q2 답변 기준으로 설치(조립) 서비스 비용이 총비용에 포함돼야 하는지 */
 export function needsInstallation(answers: Answers): boolean {
-  return answers.carry === "carry_only" || answers.carry === "need_both";
+  return answers.assembly === "service";
 }
 
 export function computeCost(p: Product, answers: Answers): CostBreakdown {
   const unknownParts: string[] = [];
-  let knownTotal = p.price + p.shipping_fee;
+  const shippingConfidence =
+    p.shipping_fee_confidence ?? p.data_confidence;
+  const shippingConfirmed = shippingConfidence === "confirmed";
+  let knownTotal = p.price + (shippingConfirmed ? p.shipping_fee : 0);
+
+  if (!shippingConfirmed) {
+    unknownParts.push("배송비");
+  }
 
   const installationNeeded = needsInstallation(answers);
   let installationFee: number | null = null;
@@ -33,10 +40,16 @@ export function computeCost(p: Product, answers: Answers): CostBreakdown {
     }
   }
 
-  const mattressNeeded = answers.wantsMattress === true && !p.mattress_included;
+  const mattressInclusionUnknown =
+    p.unknown_fields?.includes("mattress_included") ?? false;
+  const mattressNeeded =
+    answers.wantsMattress === true &&
+    (mattressInclusionUnknown || !p.mattress_included);
   let mattressPrice: number | null = null;
   if (mattressNeeded) {
-    if (p.mattress_price !== null) {
+    if (mattressInclusionUnknown) {
+      unknownParts.push("매트리스 포함 여부·가격");
+    } else if (p.mattress_price !== null) {
       mattressPrice = p.mattress_price;
       knownTotal += p.mattress_price;
     } else {

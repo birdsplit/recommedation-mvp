@@ -29,6 +29,7 @@ export const EVENT_TYPES = [
   "compare_add",
   "cost_check",
   "outbound_click",
+  "source_open",
   "feedback_submit",
   "post_purchase_submit",
 ] as const;

@@ -15,6 +15,7 @@ export function makeProduct(overrides: Partial<Product> = {}): Product {
     image_url: null,
     price: 150000,
     shipping_fee: 0,
+    shipping_fee_confidence: "confirmed",
     installation_service: "none",
     installation_fee: null,
     mattress_included: false,
