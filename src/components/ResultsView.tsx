@@ -6,6 +6,8 @@ import { EventOnMount } from "@/components/Track";
 import { RememberAnswers } from "@/components/RememberAnswers";
 import { answersQuery, summarizeAnswers } from "@/lib/reco/answers";
 import type { Answers, RecommendResult } from "@/lib/reco/types";
+import { REVIEW_RISKS } from "@/lib/constants";
+import { CRITERION_LABELS, type SessionCriteria } from "@/lib/reco/criteria";
 import { formatDateDot } from "@/lib/format";
 
 export function ResultsView({
@@ -15,6 +17,7 @@ export function ResultsView({
   demoMode,
   runId = null,
   catalogDate,
+  loop,
 }: {
   answers: Answers;
   query: string;
@@ -22,6 +25,11 @@ export function ResultsView({
   demoMode: boolean;
   runId?: string | null;
   catalogDate: string | null;
+  /**
+   * 반응 루프(arm B) 최종 후보에서만 전달하는 부가 프롭.
+   * 없으면 arm A 기본 렌더와 완전히 동일하다(기본 경로 DOM·클래스 불변).
+   */
+  loop?: { criteria: SessionCriteria; savedIds: string[] };
 }) {
   const { candidates, totalReviewed, relaxSuggestions } = result;
 
@@ -36,6 +44,7 @@ export function ResultsView({
           candidateCount: candidates.length,
           emptyResult: candidates.length === 0,
           catalogDate,
+          ...(loop ? { mode: "loop" } : {}),
         }}
       />
       <RememberAnswers
@@ -96,18 +105,64 @@ export function ResultsView({
         </dl>
       </section>
 
+      {loop &&
+        (loop.criteria.must.length > 0 ||
+          loop.criteria.prefer.length > 0 ||
+          loop.criteria.tolerated.length > 0) && (
+          <section className="mx-5 mt-3 rounded-3xl bg-peach-50 px-4 py-4">
+            <p className="text-[13px] font-extrabold text-coral-700">
+              회원님이 정한 기준
+            </p>
+            <div className="mt-2 space-y-2">
+              {loop.criteria.must.length > 0 && (
+                <CriteriaRow
+                  label="필수"
+                  items={loop.criteria.must.map((key) => CRITERION_LABELS[key])}
+                />
+              )}
+              {loop.criteria.prefer.length > 0 && (
+                <CriteriaRow
+                  label="선호"
+                  items={loop.criteria.prefer.map(
+                    (pref) => CRITERION_LABELS[pref.key]
+                  )}
+                />
+              )}
+              {loop.criteria.tolerated.length > 0 && (
+                <CriteriaRow
+                  label="감당 가능한 단점"
+                  items={loop.criteria.tolerated.map((risk) => REVIEW_RISKS[risk])}
+                />
+              )}
+            </div>
+          </section>
+        )}
+
       {candidates.length > 0 ? (
         <>
-          <p
-            aria-live="polite"
-            className="px-6 pb-1 pt-5 text-[14.5px] leading-relaxed text-sub"
-          >
-            검토한 침대 {totalReviewed}개 중 불충족 상품을 제외하고{" "}
-            <b className="font-extrabold text-coral-700">
-              후보 {candidates.length}개
-            </b>
-            를 정리했어요. 미확인 조건은 후보 안에서 따로 표시합니다.
-          </p>
+          {loop ? (
+            <p
+              aria-live="polite"
+              className="px-6 pb-1 pt-5 text-[14.5px] leading-relaxed text-sub"
+            >
+              회원님 반응으로 좁힌{" "}
+              <b className="font-extrabold text-coral-700">
+                최종 후보 {candidates.length}개
+              </b>
+              예요. 감수하기로 한 단점과 판매처 확인사항을 함께 정리했어요.
+            </p>
+          ) : (
+            <p
+              aria-live="polite"
+              className="px-6 pb-1 pt-5 text-[14.5px] leading-relaxed text-sub"
+            >
+              검토한 침대 {totalReviewed}개 중 불충족 상품을 제외하고{" "}
+              <b className="font-extrabold text-coral-700">
+                후보 {candidates.length}개
+              </b>
+              를 정리했어요. 미확인 조건은 후보 안에서 따로 표시합니다.
+            </p>
+          )}
 
           <CandidateComparison candidates={candidates} runId={runId} />
 
@@ -126,17 +181,50 @@ export function ResultsView({
               </h2>
             </div>
             <div className="mx-5 mt-3 grid gap-4 lg:grid-cols-3">
-              {candidates.map((rec, index) => (
-                <ProductCard
-                  key={rec.product.id}
-                  rec={rec}
-                  rank={index + 1}
-                  candidateCount={candidates.length}
-                  query={query}
-                  runId={runId}
-                  demoMode={demoMode}
-                />
-              ))}
+              {candidates.map((rec, index) => {
+                if (!loop) {
+                  return (
+                    <ProductCard
+                      key={rec.product.id}
+                      rec={rec}
+                      rank={index + 1}
+                      candidateCount={candidates.length}
+                      query={query}
+                      runId={runId}
+                      demoMode={demoMode}
+                    />
+                  );
+                }
+                const saved = loop.savedIds.includes(rec.product.id);
+                const toleratedHere = loop.criteria.tolerated.filter((risk) =>
+                  rec.product.review_risks.includes(risk)
+                );
+                return (
+                  <div key={rec.product.id} className="space-y-2">
+                    {saved && (
+                      <p className="inline-flex items-center rounded-full bg-leaf-50 px-3 py-1 text-[13px] font-extrabold text-leaf-700">
+                        저장한 후보
+                      </p>
+                    )}
+                    <ProductCard
+                      rec={rec}
+                      rank={index + 1}
+                      candidateCount={candidates.length}
+                      query={query}
+                      runId={runId}
+                      demoMode={demoMode}
+                    />
+                    {toleratedHere.length > 0 && (
+                      <p className="rounded-2xl bg-leaf-50 px-4 py-2.5 text-[13px] font-semibold leading-relaxed text-leaf-700">
+                        감수할 단점 ·{" "}
+                        {toleratedHere
+                          .map((risk) => REVIEW_RISKS[risk])
+                          .join(", ")}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
         </>
@@ -226,5 +314,22 @@ export function ResultsView({
         </Link>
       </div>
     </main>
+  );
+}
+
+/** 반응 루프(arm B) 기준 요약 한 줄 — loop 프롭이 있을 때만 렌더된다. */
+function CriteriaRow({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[12px] font-extrabold text-faint">{label}</span>
+      {items.map((item) => (
+        <span
+          key={item}
+          className="rounded-full bg-white px-2.5 py-1 text-[13px] font-semibold text-[#4A4038]"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
   );
 }

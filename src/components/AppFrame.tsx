@@ -21,7 +21,8 @@ export function AppFrame({
   const wide =
     pathname.startsWith("/results") ||
     pathname.startsWith("/compare") ||
-    pathname.startsWith("/admin");
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/browse/shortlist");
 
   return (
     <DataModeContext.Provider value={dataMode}>

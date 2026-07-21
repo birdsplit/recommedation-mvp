@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { SERVICE_NAME } from "@/lib/constants";
 import { HeroBedIllustration } from "@/components/BedIllustration";
-import { ArrowRightIcon, CheckIcon, LogoMark, ShieldIcon } from "@/components/icons";
-import { TrackedLink, VisitTracker } from "@/components/Track";
+import { CheckIcon, LogoMark, ShieldIcon } from "@/components/icons";
+import { VisitTracker } from "@/components/Track";
+import { StartCTA } from "@/components/StartCTA";
 import { getDataMode } from "@/lib/data-mode";
 import { getPublicProducts } from "@/lib/products";
 
@@ -31,13 +33,13 @@ export default async function LandingPage() {
       {/* 히어로 */}
       <div className="px-8 pt-8 text-center">
         <h1 className="text-[27px] font-extrabold leading-[1.4]">
-          내 생활조건에 맞는 침대,
+          비교하면서
           <br />
-          <span className="text-coral-600">3개만</span> 골라드려요
+          <span className="text-coral-600">내 기준</span>을 찾는 침대 선택
         </h1>
         <p className="mt-3.5 text-[15px] leading-relaxed text-sub">
-          수납 · 청소 · 운반 · 조립 · 추가비용 가능성까지
-          <br />한 번에 비교해요
+          내 생활조건에 맞춰 수납·청소·운반·조립·추가비용까지
+          <br />비교하고, 반응할수록 후보가 좁혀져요
         </p>
 
         <div className="mt-5 flex items-center justify-center gap-2">
@@ -58,15 +60,15 @@ export default async function LandingPage() {
 
       {/* CTA */}
       <div className="px-8 pt-6">
-        <TrackedLink
-          event="start_click"
-          payload={{ entry: "questions" }}
-          href="/q/1"
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#C8431B] to-[#A82E0C] py-[18px] text-[19px] font-extrabold text-white shadow-cta"
-        >
-          침대 후보 찾기
-          <ArrowRightIcon size={19} />
-        </TrackedLink>
+        <StartCTA />
+        <div className="mt-3 text-center">
+          <Link
+            href="/have-candidate"
+            className="text-[14px] font-bold text-faint underline-offset-4 hover:underline"
+          >
+            이미 후보가 있어요
+          </Link>
+        </div>
       </div>
 
       {/* 추천 범위·운영 방식 */}
