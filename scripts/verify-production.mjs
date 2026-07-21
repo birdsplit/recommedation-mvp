@@ -56,12 +56,23 @@ const db = createClient(supabaseUrl, serviceRoleKey, {
 const runId = randomUUID();
 const eventSessionId = randomUUID();
 const feedbackSessionId = randomUUID();
+const journeyId = randomUUID();
 const productName = `Production smoke product ${runId}`;
 const updatedProductName = `Production smoke updated ${runId}`;
 const sellerUrl = `https://example.invalid/modoo-production-smoke/${runId}`;
 const csvMarker = `production-smoke-${runId}`;
-const normalQuery = "s=any&c=both&pb=total&d=any";
+const normalAnswers = {
+  storage: "any",
+  carry: "self",
+  assembly: "self",
+  budget: null,
+  priceBasis: "total",
+  delivery: "any",
+  wantsMattress: null,
+};
+const normalQuery = "s=any&ca=self&a=self&pb=total&d=any";
 let createdProductId = null;
+let recommendationRunId = null;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -272,6 +283,62 @@ function productFields(overrides = {}) {
   return Object.entries(values);
 }
 
+function smokeProductRow() {
+  return {
+    internal_key: `production-smoke-${runId}`,
+    offer_id: runId,
+    variant_key: "smoke",
+    option_name: "SS smoke verification",
+    name: productName,
+    seller_name: "Production smoke verification",
+    seller_url: sellerUrl,
+    source_url: sellerUrl,
+    image_url: null,
+    price: 123456,
+    shipping_fee: 12000,
+    shipping_fee_confidence: "unknown",
+    installation_service: "none",
+    installation_fee: null,
+    mattress_included: false,
+    mattress_price: 89000,
+    delivery_days_min: 2,
+    delivery_days_max: 4,
+    scheduled_delivery: true,
+    width_cm: 110,
+    length_cm: 200,
+    height_cm: 30,
+    bed_size: "SS",
+    material: "Production smoke material",
+    storage_type: "drawer",
+    under_bed_clearance_cm: null,
+    has_outlet: true,
+    has_headboard: true,
+    colors: ["ivory", "black"],
+    storage_capacity: "medium",
+    dust_blocking: "high",
+    cleaning_ease: "easy",
+    robot_vacuum_fit: "no",
+    carry_difficulty: "medium",
+    carry_service_available: true,
+    self_assembly: "medium",
+    assembly_service_available: false,
+    assembly_people: 2,
+    assembly_tools: "hex key",
+    disassembly_ease: "easy",
+    review_risks: ["squeak", "extra_cost"],
+    recommended_for: "Automated production smoke verification",
+    not_recommended_for: "Real purchase",
+    data_confidence: "confirmed",
+    source_note: null,
+    last_verified_at: "2020-01-01",
+    commercial_verified_at: "2020-01-01",
+    spec_verified_at: "2020-01-01",
+    availability: "unknown",
+    unknown_fields: [],
+    status: "hidden",
+  };
+}
+
 function productIdsFromResults(html) {
   const ids = [];
   const pattern = /href="\/products\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\?|\")/gi;
@@ -281,11 +348,11 @@ function productIdsFromResults(html) {
   return ids;
 }
 
-async function verifyPublicFlow() {
+async function verifyPublicFlow(expectedResultCount) {
   const landingHtml = await requireHtml("/", "Landing page");
   assert(/href="\/q\/1(?:\?|\")/.test(landingHtml), "Landing page does not link to question 1.");
 
-  const questionPaths = ["/q/1", "/q/2?s=any", "/q/3?s=any&c=both"];
+  const questionPaths = ["/q/1", "/q/2?s=any", "/q/3?s=any&ca=self&a=self"];
   for (const [index, pathname] of questionPaths.entries()) {
     const html = await requireHtml(pathname, `Question ${index + 1}`);
     assert(
@@ -296,13 +363,44 @@ async function verifyPublicFlow() {
 
   const summaryHtml = await requireHtml(`/summary?${normalQuery}`, "Answer summary");
   assert(
-    /href="\/results\?/.test(summaryHtml),
-    "Answer summary does not link to recommendation results."
+    visibleText(summaryHtml).includes("이 조건으로 3개 보기"),
+    "Answer summary does not offer recommendation creation."
   );
 
-  const resultsHtml = await requireHtml(`/results?${normalQuery}`, "Recommendation results");
+  const recommendationResponse = await appRequest("/api/recommendations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      answers: normalAnswers,
+      session_id: eventSessionId,
+      journey_id: journeyId,
+    }),
+  });
+  assert(
+    recommendationResponse.status === 201,
+    `Recommendation API returned HTTP ${recommendationResponse.status}.`
+  );
+  const recommendationBody = await recommendationResponse.json();
+  assert(
+    typeof recommendationBody.run_id === "string" &&
+      /^\/[rR]esults\/[0-9a-f-]+$/.test(recommendationBody.results_url ?? ""),
+    "Recommendation API did not return a persisted run URL."
+  );
+  assert(
+    recommendationBody.candidate_count === expectedResultCount,
+    `Recommendation API expected ${expectedResultCount} candidates, got ${recommendationBody.candidate_count}.`
+  );
+  recommendationRunId = recommendationBody.run_id;
+
+  const resultsHtml = await requireHtml(
+    recommendationBody.results_url,
+    "Recommendation results"
+  );
   const productIds = productIdsFromResults(resultsHtml);
-  assert(productIds.length === 3, `Expected 3 recommendation products, got ${productIds.length}.`);
+  assert(
+    productIds.length === expectedResultCount,
+    `Expected ${expectedResultCount} recommendation products, got ${productIds.length}.`
+  );
 
   const detailHtml = await requireHtml(
     `/products/${productIds[0]}?${normalQuery}`,
@@ -346,6 +444,10 @@ async function verifyTracking(selectedProduct) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       session_id: eventSessionId,
+      journey_id: journeyId,
+      run_id: recommendationRunId,
+      event_version: 2,
+      cohort: "oneshot",
       event_type: "visit",
       payload: { path: "/production-smoke", marker: csvMarker },
     }),
@@ -353,8 +455,8 @@ async function verifyTracking(selectedProduct) {
   assert(response.status === 204, `Event API returned HTTP ${response.status}.`);
 
   response = await getPage(
-    `/go/${selectedProduct.id}?rank=1&via=results`,
-    `sid=${eventSessionId}`
+    `/go/${selectedProduct.id}?rank=1&via=results&run=${recommendationRunId}`,
+    `sid=${eventSessionId}; jid=${journeyId}`
   );
   assert(response.status === 302, `Outbound route returned HTTP ${response.status}.`);
   assert(
@@ -367,9 +469,12 @@ async function verifyTracking(selectedProduct) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       session_id: feedbackSessionId,
+      journey_id: journeyId,
+      run_id: recommendationRunId,
       q_time_saved: 5,
       q_conditions_reflected: 5,
       q_reasons_helpful: 5,
+      q_decision_confidence: 5,
       q_found_candidate: true,
       q_would_reuse: true,
       q_worst_question: csvMarker,
@@ -394,13 +499,15 @@ async function verifyTracking(selectedProduct) {
 
   const { data: feedbackRows, error: feedbackError } = await db
     .from("feedback")
-    .select("chosen_product_id,q_worst_question")
+    .select("chosen_product_id,q_worst_question,q_decision_confidence,run_id")
     .eq("session_id", feedbackSessionId);
   assert(!feedbackError, `Could not read production smoke feedback: ${feedbackError?.message}`);
   assert(feedbackRows?.length === 1, "Production feedback was not stored exactly once.");
   assert(
     feedbackRows[0].chosen_product_id === selectedProduct.id &&
-      feedbackRows[0].q_worst_question === csvMarker,
+      feedbackRows[0].q_worst_question === csvMarker &&
+      feedbackRows[0].q_decision_confidence === 5 &&
+      feedbackRows[0].run_id === recommendationRunId,
     "Production feedback did not preserve its product link and marker."
   );
 }
@@ -466,23 +573,19 @@ async function verifyAdminProductMutation(adminCookie) {
     "Admin dashboard is missing product or CSV links."
   );
 
-  const newProductPage = `${appUrl}/admin/products/new`;
   const newProductHtml = await requireHtml("/admin/products/new", "New product", adminCookie);
-  const createForm = findForm(
-    newProductHtml,
-    (form) => form.body.includes('name="name"') && form.body.includes('name="seller_url"'),
-    "New product"
-  );
-  const createResponse = await submitHtmlForm({
-    pageUrl: newProductPage,
-    form: createForm,
-    cookie: adminCookie,
-    fields: productFields(),
-  });
   assert(
-    [303, 307].includes(createResponse.status),
-    `Product creation returned HTTP ${createResponse.status}.`
+    visibleText(newProductHtml).includes("신규 상품은 CSV로 등록해요"),
+    "New product guidance does not enforce the CSV-first workflow."
   );
+
+  const { data: insertedProduct, error: insertProductError } = await db
+    .from("products")
+    .insert(smokeProductRow())
+    .select("id")
+    .single();
+  assert(!insertProductError, `Could not insert the hidden smoke draft: ${insertProductError?.message}`);
+  createdProductId = insertedProduct.id;
 
   const { data: createdProduct, error: createdProductError } = await db
     .from("products")
@@ -490,13 +593,10 @@ async function verifyAdminProductMutation(adminCookie) {
     .eq("seller_url", sellerUrl)
     .maybeSingle();
   assert(!createdProductError, `Could not read the smoke product: ${createdProductError?.message}`);
-  assert(createdProduct, "The production Server Action did not create the smoke product.");
-  createdProductId = createdProduct.id;
-  assert(createdProduct.name === productName, "Created product name does not match.");
+  assert(createdProduct, "The hidden smoke draft could not be read after insertion.");
+  assert(createdProduct.name === productName, "Smoke draft name does not match.");
   assert(createdProduct.status === "hidden", "Smoke product was not created hidden.");
   assert(createdProduct.source_note === null, "Hidden smoke draft unexpectedly has a source.");
-  resolveLocation(createResponse, `/admin/products/${createdProductId}`, "Product creation");
-
   const draftProductsHtml = await requireHtml(
     "/admin/products",
     "Admin products with source-less draft",
@@ -674,12 +774,20 @@ async function cleanup() {
     "product seller URL delete",
     (await db.from("products").delete().eq("seller_url", sellerUrl)).error
   );
+  if (recommendationRunId) {
+    recordError(
+      "recommendation run delete",
+      (await db.from("recommendation_runs").delete().eq("id", recommendationRunId)).error
+    );
+  }
 
   for (const [label, table, column, value] of [
     ["feedback", "feedback", "session_id", feedbackSessionId],
     ["events", "events", "session_id", eventSessionId],
     ["product", "products", "seller_url", sellerUrl],
+    ["recommendation run", "recommendation_runs", "id", recommendationRunId],
   ]) {
+    if (!value) continue;
     const { count, error } = await db
       .from(table)
       .select("id", { count: "exact", head: true })
@@ -693,14 +801,48 @@ async function cleanup() {
 try {
   await waitForDeployment();
 
-  const { count: publicProductCount, error: publicProductError } = await db
+  const { data: release, error: releaseError } = await db
+    .from("catalog_releases")
+    .select("id,version,product_count")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  assert(!releaseError, `Could not query the published catalog release: ${releaseError?.message}`);
+  assert(release, "No published catalog release is available.");
+
+  const { data: releaseProducts, error: releaseProductsError } = await db
+    .from("catalog_release_products")
+    .select("product_id")
+    .eq("release_id", release.id);
+  assert(
+    !releaseProductsError,
+    `Could not query published catalog products: ${releaseProductsError?.message}`
+  );
+  assert(
+    releaseProducts?.length === release.product_count,
+    `Published release ${release.version} expected ${release.product_count} snapshots, got ${releaseProducts?.length ?? 0}.`
+  );
+
+  const releaseProductIds = releaseProducts.map((row) => row.product_id);
+  const { count: eligibleProductCount, error: eligibleProductError } = await db
     .from("products")
     .select("id", { count: "exact", head: true })
-    .eq("status", "public");
-  assert(!publicProductError, `Could not query Supabase products: ${publicProductError?.message}`);
-  assert(publicProductCount === 10, `Expected 10 public seed products, got ${publicProductCount ?? 0}.`);
+    .in("id", releaseProductIds)
+    .eq("status", "public")
+    .eq("availability", "in_stock");
+  assert(
+    !eligibleProductError,
+    `Could not query operational catalog products: ${eligibleProductError?.message}`
+  );
+  assert(
+    eligibleProductCount === release.product_count,
+    `Published release ${release.version} has ${eligibleProductCount ?? 0}/${release.product_count} operational products.`
+  );
 
-  const { selectedProduct } = await verifyPublicFlow();
+  const expectedResultCount = Math.min(3, release.product_count);
+
+  const { selectedProduct } = await verifyPublicFlow(expectedResultCount);
   await verifyTracking(selectedProduct);
   const adminCookie = await loginAsAdmin();
   await verifyCsvExports(adminCookie);
@@ -708,7 +850,7 @@ try {
   await logoutAdmin(adminCookie);
 
   console.log(
-    "Production smoke passed: public 3-step flow, 3 results, detail/compare data, tracking, feedback, admin auth/CSV, hidden draft source guard, product update/status, and logout."
+    `Production smoke passed: release ${release.version}, ${expectedResultCount} result(s), public 3-step flow, detail/compare data, tracking, feedback, admin auth/CSV, hidden draft source guard, product update/status, and logout.`
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
