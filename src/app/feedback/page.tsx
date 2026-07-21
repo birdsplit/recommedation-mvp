@@ -57,17 +57,21 @@ function loadRunId(): string {
   return isUuid(value) ? value : "";
 }
 
-/** 1~5 원형 버튼 척도 문항 */
+/** 1~5 원형 버튼 척도 문항 (양끝 라벨은 문항별로 바꿀 수 있고, 기본값은 기존 문구와 동일) */
 function ScaleQuestion({
   number,
   title,
   value,
   onChange,
+  minLabel = "전혀 아니에요",
+  maxLabel = "매우 그래요",
 }: {
   number: number;
   title: string;
   value: number | null;
   onChange: (v: number) => void;
+  minLabel?: string;
+  maxLabel?: string;
 }) {
   return (
     <section className="rounded-3xl bg-white p-5 shadow-soft">
@@ -78,7 +82,7 @@ function ScaleQuestion({
             key={n}
             type="button"
             aria-pressed={value === n}
-            aria-label={`${n}점${n === 1 ? " (전혀 아니에요)" : n === 5 ? " (매우 그래요)" : ""}`}
+            aria-label={`${n}점${n === 1 ? ` (${minLabel})` : n === 5 ? ` (${maxLabel})` : ""}`}
             onClick={() => onChange(n)}
             className={`h-11 w-11 rounded-full text-[15px] font-extrabold transition-colors ${
               value === n
@@ -91,8 +95,8 @@ function ScaleQuestion({
         ))}
       </div>
       <div className="mt-2 flex justify-between px-1 text-[13px] font-semibold text-faint">
-        <span>전혀 아니에요</span>
-        <span>매우 그래요</span>
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
       </div>
     </section>
   );
@@ -166,6 +170,7 @@ export default function FeedbackPage() {
   const [timeSaved, setTimeSaved] = useState<number | null>(null);
   const [conditionsReflected, setConditionsReflected] = useState<number | null>(null);
   const [reasonsHelpful, setReasonsHelpful] = useState<number | null>(null);
+  const [decisionConfidence, setDecisionConfidence] = useState<number | null>(null);
   const [foundCandidate, setFoundCandidate] = useState<boolean | null>(null);
   const [wouldReuse, setWouldReuse] = useState<boolean | null>(null);
   const [worstChoice, setWorstChoice] = useState<WorstCode | null>(null);
@@ -222,11 +227,20 @@ export default function FeedbackPage() {
         timeSaved,
         conditionsReflected,
         reasonsHelpful,
+        decisionConfidence,
         foundCandidate,
         wouldReuse,
         worstChoice,
       ].filter((v) => v === null).length,
-    [timeSaved, conditionsReflected, reasonsHelpful, foundCandidate, wouldReuse, worstChoice]
+    [
+      timeSaved,
+      conditionsReflected,
+      reasonsHelpful,
+      decisionConfidence,
+      foundCandidate,
+      wouldReuse,
+      worstChoice,
+    ]
   );
   const canSubmit = missingCount === 0 && !submitting;
 
@@ -254,6 +268,7 @@ export default function FeedbackPage() {
           q_time_saved: timeSaved,
           q_conditions_reflected: conditionsReflected,
           q_reasons_helpful: reasonsHelpful,
+          q_decision_confidence: decisionConfidence,
           q_found_candidate: foundCandidate,
           q_would_reuse: wouldReuse,
           q_worst_question: worstQuestionValue(),
@@ -359,23 +374,31 @@ export default function FeedbackPage() {
           value={reasonsHelpful}
           onChange={setReasonsHelpful}
         />
-        <YesNoQuestion
+        <ScaleQuestion
           number={4}
+          title="지금 결정에 얼마나 확신이 드나요?"
+          value={decisionConfidence}
+          onChange={setDecisionConfidence}
+          minLabel="전혀 확신 없음"
+          maxLabel="매우 확신"
+        />
+        <YesNoQuestion
+          number={5}
           title="추천 후보 중 실제로 고려할 상품이 있었나요?"
           value={foundCandidate}
           onChange={setFoundCandidate}
         />
         <YesNoQuestion
-          number={5}
+          number={6}
           title="다른 가구를 살 때도 쓰고 싶나요?"
           value={wouldReuse}
           onChange={setWouldReuse}
         />
 
-        {/* ⑥ 가장 불필요/피곤했던 질문 */}
+        {/* ⑦ 가장 불필요/피곤했던 질문 */}
         <section className="rounded-3xl bg-white p-5 shadow-soft">
           <QuestionTitle
-            number={6}
+            number={7}
             title="가장 불필요하거나 피곤했던 질문은?"
             required
           />
@@ -406,10 +429,10 @@ export default function FeedbackPage() {
           />
         </section>
 
-        {/* ⑦ 가장 마음에 든 상품 — 후보가 있을 때만 */}
+        {/* ⑧ 가장 마음에 든 상품 — 후보가 있을 때만 */}
         {candidates.length > 0 && (
           <section className="rounded-3xl bg-white p-5 shadow-soft">
-            <QuestionTitle number={7} title="가장 마음에 든 상품이 있다면?" />
+            <QuestionTitle number={8} title="가장 마음에 든 상품이 있다면?" />
             <div className="mt-4 space-y-2">
               {candidates.map((p) => (
                 <button
@@ -456,7 +479,7 @@ export default function FeedbackPage() {
           </section>
         )}
 
-        {/* ⑧ 구매 후 경험 질문 동의 */}
+        {/* ⑨ 구매 후 경험 질문 동의 */}
         <label className="flex cursor-pointer items-start gap-3 rounded-3xl bg-white p-5 shadow-soft">
           <input
             type="checkbox"

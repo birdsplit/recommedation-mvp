@@ -12,7 +12,8 @@ async function expectNoSeriousA11yViolations(page: Page) {
 }
 
 test("질문 → 3개 비교 → 상세 → 추가비용 흐름과 접근성", async ({ page }) => {
-  await page.goto("/");
+  // ?mode=oneshot으로 arm A를 고정한다(50/50 배정이 흐름을 바꾸지 못하게).
+  await page.goto("/?mode=oneshot");
   await expect(page.getByText("데모 데이터로 기능을 검증 중이에요.")).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 
@@ -78,6 +79,7 @@ test("데모 이동 차단과 DB 미설정 API가 성공을 위장하지 않음"
       q_time_saved: 4,
       q_conditions_reflected: 4,
       q_reasons_helpful: 4,
+      q_decision_confidence: 4,
       q_found_candidate: true,
       q_would_reuse: true,
       q_worst_question: "없었어요",

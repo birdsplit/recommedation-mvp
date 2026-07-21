@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  computeExperimentSummary,
   loadAdminFunnel,
+  loadCohortFeedback,
+  loadCohortFunnel,
+  loadReactionStats,
   type BranchRow,
+  type CohortFeedbackLoadState,
+  type CohortFunnelLoadState,
+  type ExperimentModeSummary,
   type FunnelRow,
+  type ReactionStats,
+  type ReactionStatsLoadState,
 } from "@/lib/admin-analytics";
 import { requireAdmin } from "@/lib/admin-auth";
+import { REASON_CHIPS, type ReasonChip } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "관리자 대시보드",
@@ -119,6 +129,267 @@ function BranchTable({ rows }: { rows: BranchRow[] }) {
   );
 }
 
+/** 0~1 비율을 소수 첫째 자리 %로. null이면 대시. */
+function percentLabel(value: number | null): string {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+/** 1~5 평균을 소수 둘째 자리로. null이면 대시. */
+function avgLabel(value: number | null): string {
+  return value === null ? "—" : value.toFixed(2);
+}
+
+const REACTION_KIND_LABELS: Record<"save" | "exclude" | "hold", string> = {
+  save: "저장",
+  exclude: "제외",
+  hold: "보류",
+};
+
+const CONFIRM_BUCKET_LABELS: Record<"must" | "prefer" | "dismissed", string> = {
+  must: "필수",
+  prefer: "선호",
+  dismissed: "아니요",
+};
+
+function TargetBadge({ met, label }: { met: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+        met
+          ? "bg-[#E4F3E7] text-[#2F7A43]"
+          : "bg-[#F3ECE3] text-faint"
+      }`}
+    >
+      {label} · {met ? "달성" : "미달"}
+    </span>
+  );
+}
+
+function SummaryMetric({
+  label,
+  value,
+  badge,
+}: {
+  label: string;
+  value: string;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-[#F1E8DE] py-2 first:border-t-0">
+      <dt className="text-[13px] font-semibold text-sub">{label}</dt>
+      <dd className="flex items-center gap-2">
+        {badge}
+        <span className="text-[15px] font-extrabold tabular-nums">{value}</span>
+      </dd>
+    </div>
+  );
+}
+
+function ExperimentSummaryPanel({
+  summaries,
+}: {
+  summaries: ExperimentModeSummary[];
+}) {
+  return (
+    <div className="grid gap-3 p-4 sm:grid-cols-2">
+      {summaries.map((summary) => (
+        <article key={summary.mode} className="rounded-2xl bg-cream p-4">
+          <header className="flex items-baseline justify-between gap-2">
+            <h3 className="text-[14px] font-extrabold">{summary.label}</h3>
+            <span className="text-[12px] font-bold text-faint">{summary.mode}</span>
+          </header>
+          <dl className="mt-2">
+            <SummaryMetric
+              label="여정 수"
+              value={numberFormat.format(summary.journeys)}
+            />
+            <SummaryMetric
+              label="완주율 (결과 도달)"
+              value={percentLabel(summary.completionRate)}
+              badge={
+                <TargetBadge
+                  met={summary.meetsCompletionTarget}
+                  label="완주 30% 목표"
+                />
+              }
+            />
+            <SummaryMetric
+              label="판매처 이동률"
+              value={percentLabel(summary.outboundRate)}
+              badge={
+                <TargetBadge
+                  met={summary.meetsOutboundTarget}
+                  label="이동 10% 목표"
+                />
+              }
+            />
+            {summary.mode === "loop" && (
+              <SummaryMetric
+                label="최종확정 수"
+                value={numberFormat.format(summary.finalizeCount)}
+              />
+            )}
+            <SummaryMetric
+              label="평균 확신도"
+              value={avgLabel(summary.avgConfidence)}
+            />
+            <SummaryMetric
+              label="후보 발견율"
+              value={percentLabel(summary.foundRate)}
+            />
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ReactionStatsPanel({
+  stats,
+  isEmpty,
+}: {
+  stats: ReactionStats;
+  isEmpty: boolean;
+}) {
+  const confirmTotal =
+    stats.confirmBuckets.must +
+    stats.confirmBuckets.prefer +
+    stats.confirmBuckets.dismissed;
+
+  return (
+    <div className="border-t border-[#F1E8DE] p-4">
+      <h3 className="text-[14px] font-extrabold">반응 통계 (반응 기반 추천)</h3>
+      {isEmpty ? (
+        <p className="mt-2 text-[13px] leading-relaxed text-faint">
+          아직 반응·기준 확인 데이터가 없어요. 반응 기반 추천 여정이 쌓이면
+          여기에 표시돼요.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div className="rounded-2xl bg-cream p-3">
+            <p className="text-[13px] font-semibold text-sub">
+              총 반응{" "}
+              <span className="text-[15px] font-extrabold tabular-nums">
+                {numberFormat.format(stats.totalReactions)}
+              </span>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(["save", "exclude", "hold"] as const).map((kind) => (
+                <span
+                  key={kind}
+                  className="rounded-full bg-white px-3 py-1 text-[12.5px] font-bold text-sub shadow-soft"
+                >
+                  {REACTION_KIND_LABELS[kind]}{" "}
+                  <span className="tabular-nums">
+                    {numberFormat.format(stats.byKind[kind])}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-cream p-3">
+            <p className="text-[13px] font-semibold text-sub">상위 이유 칩</p>
+            {stats.topChips.length === 0 ? (
+              <p className="mt-1 text-[13px] text-faint">기록된 이유 칩이 없어요.</p>
+            ) : (
+              <ol className="mt-2 space-y-1">
+                {stats.topChips.map((item) => (
+                  <li
+                    key={item.chip}
+                    className="flex items-center justify-between gap-2 text-[13px]"
+                  >
+                    <span className="font-semibold text-sub">
+                      {REASON_CHIPS[item.chip as ReasonChip] ?? item.chip}
+                    </span>
+                    <span className="font-extrabold tabular-nums">
+                      {numberFormat.format(item.count)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+
+          <div className="rounded-2xl bg-cream p-3">
+            <p className="text-[13px] font-semibold text-sub">
+              기준 확인 응답 분포{" "}
+              <span className="text-[13px] font-bold text-faint">
+                (총 {numberFormat.format(confirmTotal)})
+              </span>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(["must", "prefer", "dismissed"] as const).map((bucket) => (
+                <span
+                  key={bucket}
+                  className="rounded-full bg-white px-3 py-1 text-[12.5px] font-bold text-sub shadow-soft"
+                >
+                  {CONFIRM_BUCKET_LABELS[bucket]}{" "}
+                  <span className="tabular-nums">
+                    {numberFormat.format(stats.confirmBuckets[bucket])}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExperimentSection({
+  cohortFunnel,
+  cohortFeedback,
+  reactions,
+}: {
+  cohortFunnel: CohortFunnelLoadState;
+  cohortFeedback: CohortFeedbackLoadState;
+  reactions: ReactionStatsLoadState;
+}) {
+  const states = [cohortFunnel, cohortFeedback, reactions];
+  const anySetup = states.some((state) => state.status === "setup");
+  const anyError = states.some((state) => state.status === "error");
+  const allReady =
+    cohortFunnel.status === "ready" &&
+    cohortFeedback.status === "ready" &&
+    reactions.status === "ready";
+
+  return (
+    <section className="mt-4 overflow-hidden rounded-[28px] bg-white shadow-card">
+      <div className="border-b border-[#F1E8DE] px-5 py-4">
+        <h2 className="text-[16px] font-extrabold">실험 현황 (H1·H3)</h2>
+        <p className="mt-1 text-[13px] leading-relaxed text-faint">
+          일회성 추천(oneshot)과 반응 기반 추천(loop)을 나란히 비교해요. 완주율
+          30%·판매처 이동률 10%가 H3 목표예요.
+        </p>
+      </div>
+      {anySetup ? (
+        <div className="p-4">
+          <SetupState />
+        </div>
+      ) : anyError ? (
+        <div className="p-4">
+          <ErrorState />
+        </div>
+      ) : allReady ? (
+        <>
+          <ExperimentSummaryPanel
+            summaries={computeExperimentSummary(
+              cohortFunnel.cohorts,
+              cohortFeedback.cohorts
+            )}
+          />
+          <ReactionStatsPanel
+            stats={reactions.stats}
+            isEmpty={reactions.isEmpty}
+          />
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function SetupState() {
   return (
     <section className="rounded-[28px] border border-[#F2D7C8] bg-white p-6 shadow-card">
@@ -169,7 +440,12 @@ function EmptyState() {
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
-  const funnel = await loadAdminFunnel();
+  const [funnel, cohortFunnel, cohortFeedback, reactions] = await Promise.all([
+    loadAdminFunnel(),
+    loadCohortFunnel(),
+    loadCohortFeedback(),
+    loadReactionStats(),
+  ]);
   const canExport = funnel.status === "ready";
 
   return (
@@ -231,6 +507,11 @@ export default async function AdminDashboardPage() {
           {funnel.isEmpty && <EmptyState />}
           <FunnelTable rows={funnel.rows} />
           <BranchTable rows={funnel.branches} />
+          <ExperimentSection
+            cohortFunnel={cohortFunnel}
+            cohortFeedback={cohortFeedback}
+            reactions={reactions}
+          />
         </>
       )}
     </main>

@@ -28,6 +28,7 @@ export async function POST(req: Request): Promise<Response> {
     q_time_saved,
     q_conditions_reflected,
     q_reasons_helpful,
+    q_decision_confidence,
     q_found_candidate,
     q_would_reuse,
     q_worst_question,
@@ -48,7 +49,8 @@ export async function POST(req: Request): Promise<Response> {
   if (
     !isScale1to5(q_time_saved) ||
     !isScale1to5(q_conditions_reflected) ||
-    !isScale1to5(q_reasons_helpful)
+    !isScale1to5(q_reasons_helpful) ||
+    !isScale1to5(q_decision_confidence)
   ) {
     return new Response(null, { status: 400 });
   }
@@ -96,6 +98,7 @@ export async function POST(req: Request): Promise<Response> {
     q_time_saved,
     q_conditions_reflected,
     q_reasons_helpful,
+    q_decision_confidence,
     q_found_candidate,
     q_would_reuse,
     q_worst_question:
